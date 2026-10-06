@@ -86,7 +86,7 @@ listed below as added later the same day has **not** been run in Apps Script.
 - Added later, local only: the load-state gate (data not refreshed yet, refreshed without the week, a market loaded
   half way). Such a run is shown with its warning and never saved. The 80 % coverage threshold is a proposal.
 - Added later, local only: a stable KPI `uid` (technical key, or the inputs of a derived row) used to recognise a
-  finding from one week to the next. Between copies `(2)` and `(3)` 98 KPIs changed row and 74 changed label; every
-  analysed KPI kept its uid.
+  finding from one week to the next. Between copies `(2)` and `(3)` 100 of the 124 common KPIs changed row and 76 changed label;
+  all 124 kept their uid.
 - The earlier selector-based files and their documents are kept as history and marked superseded. Current state:
   `README.md`.
