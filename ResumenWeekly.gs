@@ -170,6 +170,9 @@ const weeklyResumenReglas_ = Object.freeze({
   VALOR_REPETIDO: 'Valor repetido',
   DEPENDE_DE_DATO_OBSERVADO: 'Depende de un dato observado',
   SEMANA_ESPERADA_AUSENTE: 'Falta la última semana cerrada',
+  ACTUALIZACION_PENDIENTE: 'Los datos todavía no se actualizaron',
+  CARGA_PARCIAL: 'La carga de la semana está incompleta',
+  FILAS_DUPLICADAS: 'Filas repetidas en los datos',
   SEMANA_SALTEADA: 'Semana salteada',
   ENTIDAD_SIN_DATOS: 'Mercado sin datos'
 });
@@ -216,7 +219,10 @@ function vistaWeekly(resultado) {
       favorables: movimientos.filter(m => m.favorable === true).length,
       calidad: calidad.length, calidadAltas: calidad.filter(c => c.severidad === 'alta').length,
       kpisAnalizados: resultado.catalogo.analizados, filasKpi: resultado.catalogo.total },
-    estadoCarga: resultado.globales.map(g => ({ titulo: weeklyResumenReglas_[g.regla] || g.regla, detalle: g.detalle })),
+    estadoCarga: resultado.globales.map(g => ({ titulo: weeklyResumenReglas_[g.regla] || g.regla,
+      detalle: g.detalle.replace(/(\d{4})-(\d{2})-(\d{2})/g, '$3/$2/$1'),
+      provisoria: !!g.provisoria })),
+    provisoria: !!resultado.provisoria,
     mercados: Object.keys(mercados).sort().map(nombre => mercados[nombre]),
     movimientos: movimientos, calidad: calidad,
     sinOperacion: Object.keys(sinOperacion).sort().map(nombre => ({ entidad: nombre, kpis: sinOperacion[nombre] })),
@@ -393,11 +399,14 @@ function weeklyResumenHistoria_(resultado) {
     entrada.destacados.slice(1).forEach(suma);
     entrada.topline.forEach(suma);
     const altas = calidadAltaDe(entrada.entidad);
-    let texto = propias && propias.cambio !== null
+    const cargando = (resultado.cargaParcial || []).indexOf(entrada.entidad) !== -1;
+    let texto = cargando
+      ? 'La carga de esta semana está incompleta para ' + entrada.entidad + ': faltan datos que las semanas anteriores sí traían. '
+      : propias && propias.cambio !== null
       ? 'Órdenes ' + weeklyResumenCambio_(propias.cambio, propias.unidad) + ' (' + weeklyResumenCompacto_(propias.valorAnterior, propias.unidad) +
         ' → ' + weeklyResumenCompacto_(propias.valor, propias.unidad) + '). '
       : 'Las órdenes de esta semana no se pueden comparar: el dato está a revisar. ';
-    texto += destacados.length
+    texto += cargando ? 'No se interpreta hasta que la carga termine.' : destacados.length
       ? 'Lo que más se movió: ' + destacados.map(d => d.contexto + ' › ' + d.nombre + ' ' + d.cambio +
         ' (' + d.anterior + ' → ' + d.valor + ')').join('; ') + '.'
       : 'Ningún KPI se movió fuera de lo habitual.';

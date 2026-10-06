@@ -276,3 +276,19 @@ test('degraded catalog: an incomplete run is shown with a warning, never saved a
   assert.equal(otra.vista.conteos.kpisAnalizados, 2);
   assert.equal(sana.estado.registro.length, 2, 'the degraded row is replaced by the good run');
 });
+
+test('a run on data not refreshed yet is shown with its warning and never saved', () => {
+  const { ctx, estado } = mundo({ [KPIS]: hojaKpis(), [DATOS]: hojaDatos(40) }, hoyPara(41));
+  const respuesta = ctx.obtenerVistaWeekly(false);
+  assert.equal(respuesta.estado, 'ok', JSON.stringify(respuesta.error));
+  assert.equal(respuesta.semanaEsperada, iso(LUNES(40)));
+  assert.equal(respuesta.vista.semana, iso(LUNES(39)));
+  assert.equal(respuesta.vista.provisoria, true);
+  assert.equal(respuesta.vista.estadoCarga[0].titulo, 'Los datos todavía no se actualizaron');
+  assert.match(respuesta.vista.estadoCarga[0].detalle, /antes del lunes \d{2}\/\d{2}\/\d{4}\./, 'dates are shown as day/month/year');
+  assert.match(respuesta.avisos.join(' '), /provisoria y no se guardó/);
+  assert.deepEqual(estado.escrituras, []);
+  const lecturas = estado.lecturasFuente;
+  assert.equal(ctx.obtenerVistaWeekly(false).procedencia, 'lectura');
+  assert.ok(estado.lecturasFuente > lecturas, 'the next opening reads the source again');
+});

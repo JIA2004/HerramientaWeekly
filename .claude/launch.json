@@ -6,6 +6,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["herramientas/vista-previa.cjs", "C:/Users/juan.aguirre/Downloads/Weekly Performance Review (3).xlsx", "--puerto=8125"],
       "port": 8125
+    },
+    {
+      "name": "vista-previa-lunes-sin-actualizar",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["herramientas/vista-previa.cjs", "C:/Users/juan.aguirre/Downloads/Weekly Performance Review (3).xlsx", "--puerto=8126", "--hoy=2026-10-12"],
+      "port": 8126
     }
   ]
 }

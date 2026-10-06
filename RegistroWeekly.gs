@@ -29,7 +29,7 @@ function obtenerVistaWeekly(forzar) {
   const respuesta = { schemaVersion: 'weekly-vista/2', estado: 'error', error: null, procedencia: null,
     generadoIso: null, semanaEsperada: null, avisos: [],
     origen: { hojaKpis: fuente.hojaKpis, hojaDatos: fuente.hojaDatos, hojaRegistro: weeklyRegistroConfig_.hoja,
-      ultimaActualizacionExtract: null, controlHoja: null },
+      ultimaActualizacionExtract: null, ultimaActualizacionHora: null, controlHoja: null },
     vista: null };
   let documento = null;
   let zona = null;
@@ -52,7 +52,8 @@ function obtenerVistaWeekly(forzar) {
   };
   // A saved run where most KPI rows could not be interpreted is never served,
   // nor one saved before the page had its weekly story.
-  if (guardada && guardada.paquete && (weeklyRegistroDegradada_(guardada.paquete.vista) || !guardada.paquete.vista.historia)) guardada = null;
+  if (guardada && guardada.paquete && (weeklyRegistroDegradada_(guardada.paquete.vista) || !guardada.paquete.vista.historia ||
+    guardada.paquete.vista.provisoria)) guardada = null;
   if (!forzar && guardada && guardada.paquete && respuesta.semanaEsperada && guardada.semana >= respuesta.semanaEsperada) {
     return sirveGuardada();
   }
@@ -77,6 +78,7 @@ function obtenerVistaWeekly(forzar) {
   respuesta.procedencia = 'lectura';
   respuesta.generadoIso = corrida.finIso;
   respuesta.origen.ultimaActualizacionExtract = corrida.origen.ultimaActualizacionExtract;
+  respuesta.origen.ultimaActualizacionHora = corrida.origen.ultimaActualizacionHora || null;
   // Only a fresh read can be checked against what the sheet shows right now.
   respuesta.origen.controlHoja = weeklyFuenteCoincidenciaTexto_(corrida.origen.coincidencia) || null;
   if (corrida.origen.coincidencia && corrida.origen.coincidencia.estado === 'difiere') {
@@ -87,6 +89,12 @@ function obtenerVistaWeekly(forzar) {
     respuesta.avisos.push('Solo se pudieron interpretar ' + vista.conteos.kpisAnalizados + ' de ' + vista.conteos.filasKpi +
       ' filas de KPIs: la estructura o las fórmulas de la hoja cambiaron. Este resultado está incompleto y no se guardó. ' +
       'El motivo de cada fila está en "Advertencias del catálogo de KPIs".');
+    return respuesta;
+  }
+  // A run on a load that is pending or half way is shown and never kept: the
+  // next opening reads again, so the week's saved result is always a full one.
+  if (vista.provisoria) {
+    respuesta.avisos.push('Esta lectura es provisoria y no se guardó: la próxima vez que se abra la página se vuelve a leer el Sheets.');
     return respuesta;
   }
   try {

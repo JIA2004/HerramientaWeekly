@@ -32,6 +32,12 @@ const weeklyMotorConfig_ = Object.freeze({
   semanasAnio: 52,
   maxCoMovimientos: 5,
   maxDestacados: 3,
+  // A market whose last week carries less than this share of the fields its
+  // previous weeks carried is read as a load still in progress.
+  coberturaMinima: 0.8,
+  semanasCobertura: 3,
+  // With only a handful of fields one gap is not a load problem.
+  camposParaCobertura: 10,
   // How many block leaders make the headline of the weekly overview.
   maxTopline: 3
 });
@@ -44,7 +50,9 @@ function analizarWeekly(entrada) {
   const kpis = entrada.catalogo.kpis;
   kpis.forEach(kpi => { ctx.porId[kpi.id] = kpi; });
   const analizables = kpis.filter(kpi => kpi.def && !kpi.duplicadoDe);
-  const globales = weeklyMotorGlobales_(entrada, semanas);
+  const globales = weeklyMotorGlobales_(entrada, semanas, cfg);
+  const parciales = {};
+  globales.forEach(g => (g.entidades || []).forEach(nombre => { parciales[nombre] = true; }));
   const calidad = [];
   const performance = [];
   const noOpera = [];
@@ -52,6 +60,9 @@ function analizarWeekly(entrada) {
   if (n >= 2) {
     entrada.entidades.forEach(entidad => {
       movimientos[entidad.nombre] = {};
+      // A market still loading is not interpreted at all: one finding for the
+      // load instead of one per missing KPI, and no performance on half a week.
+      if (parciales[entidad.nombre]) return;
       const revisiones = {};
       analizables.forEach(kpi => {
         const serie = weeklyMotorSerie_(ctx, entidad.nombre, kpi.id, 0);
@@ -81,6 +92,8 @@ function analizarWeekly(entrada) {
     semanaAnterior: n > 1 ? semanas[n - 2] : null,
     semanasDisponibles: n,
     globales,
+    provisoria: globales.some(g => g.provisoria),
+    cargaParcial: Object.keys(parciales).sort(),
     calidad,
     performance,
     noOpera,
@@ -96,13 +109,27 @@ function analizarWeekly(entrada) {
   };
 }
 
-function weeklyMotorGlobales_(entrada, semanas) {
+// State of the load, before any KPI is read. The sheet is refreshed on Mondays
+// and a Monday morning run can find it not refreshed yet, refreshed without
+// the new week, or refreshed half way. Those three make the run provisional
+// (provisoria): it is shown with the warning and must not be kept as the
+// week's result.
+function weeklyMotorGlobales_(entrada, semanas, cfg) {
   const hallazgos = [];
   const ultima = semanas.length ? semanas[semanas.length - 1] : null;
   if (entrada.semanaEsperada && ultima !== entrada.semanaEsperada) {
-    hallazgos.push({ regla: 'SEMANA_ESPERADA_AUSENTE', severidad: 'alta',
-      detalle: 'La última semana cerrada esperada es ' + entrada.semanaEsperada +
-        ' y la última semana con datos es ' + ultima + '.' });
+    const lunesActual = new Date(Date.parse(entrada.semanaEsperada) + 7 * 86400000).toISOString().slice(0, 10);
+    const actualizada = entrada.ultimaActualizacion || null;
+    if (actualizada && actualizada < lunesActual && ultima < entrada.semanaEsperada) {
+      hallazgos.push({ regla: 'ACTUALIZACION_PENDIENTE', severidad: 'alta', provisoria: true,
+        detalle: 'Los datos se actualizaron por última vez el ' + actualizada + ', antes del lunes ' + lunesActual +
+          '. Todavía no traen la semana del ' + entrada.semanaEsperada + '; lo que se muestra es la semana del ' + ultima + '.' });
+    } else {
+      hallazgos.push({ regla: 'SEMANA_ESPERADA_AUSENTE', severidad: 'alta', provisoria: true,
+        detalle: 'La última semana cerrada esperada es ' + entrada.semanaEsperada +
+          ' y la última semana con datos es ' + ultima + '.' +
+          (actualizada && actualizada >= lunesActual ? ' Los datos sí se actualizaron el ' + actualizada + ': la semana falta en la fuente.' : '') });
+    }
   }
   for (let i = 1; i < semanas.length; i++) {
     const dias = (Date.parse(semanas[i]) - Date.parse(semanas[i - 1])) / 86400000;
@@ -110,6 +137,28 @@ function weeklyMotorGlobales_(entrada, semanas) {
       hallazgos.push({ regla: 'SEMANA_SALTEADA', severidad: 'alta',
         detalle: 'Entre ' + semanas[i - 1] + ' y ' + semanas[i] + ' hay ' + dias + ' días.' });
     }
+  }
+  const n = semanas.length;
+  if (n > cfg.semanasCobertura) {
+    const cuenta = (campos, semana) => Object.keys(campos).filter(campo => typeof campos[campo][semana] === 'number').length;
+    const cortos = [];
+    entrada.entidades.forEach(entidad => {
+      const campos = entrada.datos[entidad.nombre];
+      if (!campos) return;
+      const previas = weeklyMotorMediana_(semanas.slice(n - 1 - cfg.semanasCobertura, n - 1).map(semana => cuenta(campos, semana)));
+      const actual = cuenta(campos, semanas[n - 1]);
+      if (previas >= cfg.camposParaCobertura && actual < cfg.coberturaMinima * previas) cortos.push({ nombre: entidad.nombre, actual: actual, previas: previas });
+    });
+    if (cortos.length) {
+      hallazgos.push({ regla: 'CARGA_PARCIAL', severidad: 'alta', provisoria: true, entidades: cortos.map(c => c.nombre),
+        detalle: 'La semana del ' + semanas[n - 1] + ' trae menos datos que las anteriores en ' +
+          cortos.map(c => c.nombre + ' (' + c.actual + ' campos con dato; antes ' + c.previas + ')').join(', ') +
+          '. Esos mercados no se interpretan hasta que la carga termine.' });
+    }
+  }
+  if (entrada.filasDuplicadas > 0) {
+    hallazgos.push({ regla: 'FILAS_DUPLICADAS', severidad: 'media',
+      detalle: entrada.filasDuplicadas + ' combinaciones de mercado y semana aparecen más de una vez en los datos; se usó la última de cada una.' });
   }
   entrada.entidades.forEach(entidad => {
     if (!entrada.datos[entidad.nombre]) {

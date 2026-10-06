@@ -68,7 +68,7 @@ spreadsheet interaction.
 
 ## 2026-10-06 — New read-only source, engine, story page (local; partly operator-executed)
 
-Recorded by the operators. Local verification: `node --test tests/*.test.cjs` (201 tests, all passing) and
+Recorded by the operators. Local verification: `node --test tests/*.test.cjs` (204 tests, all passing) and
 `herramientas/analizar.cjs` / `herramientas/vista-previa.cjs` on downloaded `.xlsx` copies.
 
 Operator-reported, **not** produced by an automated test: `probarAnalisisWeekly()` ran in the Apps Script project
@@ -83,5 +83,7 @@ listed below as added later the same day has **not** been run in Apps Script.
   four-chapter story page after the Figma design; the block column of the sheet and the carousel of block leaders.
 - Sheet copies analysed: `Weekly Performance Review.xlsx`, `(2)` and `(3)`. In `(3)` sections were renamed and two
   rows (42 `Trials QC`, 68 `VFD/GMV`) have no technical key or direction, so they are reported and not analysed.
+- Added later, local only: the load-state gate (data not refreshed yet, refreshed without the week, a market loaded
+  half way). Such a run is shown with its warning and never saved. The 80 % coverage threshold is a proposal.
 - The earlier selector-based files and their documents are kept as history and marked superseded. Current state:
   `README.md`.

@@ -2,6 +2,8 @@
 
 Fecha: 2026-10-06. Autor: Claude (a pedido de Juani). Estado: **propuesta de diseño; el sistema de agentes no está implementado ni desplegado.** El estado actual del producto está en `README.md`.
 
+> La compuerta de fuente descrita en las secciones 2.2, 4 y 6.2 (pendiente / ausente / parcial) ya está implementada en el motor; siguen pendientes el identificador estable de KPI, `run_id` y el guardado del resultado completo.
+>
 > Actualización del mismo día, después de escribir este documento: se implementaron el control de coincidencia contra la hoja, la página de cuatro capítulos según el diseño de Figma y el carrusel por sección con los KPIs que abren cada bloque de la hoja. Los textos de esa página se arman por reglas. La variante A de este documento (una llamada a un modelo) sería lo que reemplace esos textos por una redacción editorial.
 
 Etiquetas de evidencia usadas en todo el documento:

@@ -2,7 +2,7 @@
 
 Web interna para leer, cada lunes, qué pasó la semana anterior (lunes a domingo) en los 15 países y en LATAM. La idea es que se lea como un cuento en la reunión weekly, no como una tabla de KPIs.
 
-Estado al 2026-10-06: funciona en local sobre copias `.xlsx` (201 tests pasan). La lectura y la página anterior se probaron en Apps Script; el carrusel, el control contra la hoja y el guardado **todavía no se probaron en vivo**. No hay trigger ni envíos automáticos.
+Estado al 2026-10-06: funciona en local sobre copias `.xlsx` (204 tests pasan). La lectura y la página anterior se probaron en Apps Script; el carrusel, el control contra la hoja, el estado de la carga y el guardado **todavía no se probaron en vivo**. No hay trigger ni envíos automáticos.
 
 ## Qué muestra la web
 
@@ -20,6 +20,7 @@ Estado al 2026-10-06: funciona en local sobre copias `.xlsx` (201 tests pasan). 
 - **Los números**: pestaña `[Extract] Tabla Weekly`, la misma tabla que leen los SUMIFS de la hoja. Trae los 16 mercados en una lectura, toda la historia y distingue cero de faltante.
 - **Control de coincidencia**: en cada lectura se comparan los valores del motor con los que la hoja muestra para el mercado elegido en su selector, sin tocarlo. El resultado aparece al pie de la web.
 - **KPIs líderes**: el primer KPI analizable de cada bloque de la hoja, en el orden de la hoja. Nadie los lista en el código.
+- **Estado de la carga**: antes de analizar se revisa si los datos ya se actualizaron este lunes, si traen la última semana cerrada y si algún mercado vino a medias (menos del 80 % de los campos que traía en las tres semanas anteriores; umbral propuesto, sin validar). En cualquiera de esos casos la web lo avisa arriba, no interpreta los mercados incompletos y no guarda la lectura, así la siguiente vez vuelve a leer.
 - **Nada se ubica por coordenada fija**: encabezado "KPI", columnas de fecha, "WoW", dirección, clave, bloque y selector se encuentran por contenido, porque la hoja cambia de estructura seguido.
 
 ## Reglas que el código respeta
@@ -68,13 +69,14 @@ Vista previa de la web en local:
 node herramientas/vista-previa.cjs "C:/Users/juan.aguirre/Downloads/Weekly Performance Review (3).xlsx" --puerto=8125
 ```
 
+Las dos herramientas aceptan `--hoy=AAAA-MM-DD` para simular otra fecha, por ejemplo el lunes siguiente con los datos todavía sin actualizar.
+
 En Apps Script: pegar `MotorWeekly.gs`, `ResumenWeekly.gs`, `FuenteWeekly.gs`, `RegistroWeekly.gs` y el HTML `Resumen`; el `doGet` debe servir `Resumen`. `probarAnalisisWeekly()` corre la lectura desde el editor.
 
 ## Pendientes conocidos
 
-- Probar en Apps Script el carrusel, el control contra la hoja y el guardado en `Weekly_Tool_Registro`.
+- Probar en Apps Script el carrusel, el control contra la hoja, el estado de la carga y el guardado en `Weekly_Tool_Registro`.
 - El `doGet` del repo (`Web.gs.txt`) todavía sirve `Index`.
-- No se distingue semana ausente de actualización pendiente, ni se detecta una carga parcial.
 - El identificador interno de un KPI es su fila; cambia si se insertan filas.
 - Umbrales de alerta sin validar por el equipo; dirección y unidad de cada KPI sin validar.
 - Filas de la hoja que hoy no se analizan porque les falta clave técnica y dirección: aparecen al pie de la web en "Advertencias del catálogo de KPIs".

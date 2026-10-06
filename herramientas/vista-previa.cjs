@@ -29,7 +29,8 @@ function respuesta() {
   return { schemaVersion: 'weekly-vista/2', estado: 'ok', error: null, procedencia: 'lectura', avisos: [],
     generadoIso: new Date().toISOString(),
     origen: { hojaKpis: '2) Weekly por pais', hojaDatos: 'copia local: ' + path.basename(ruta),
-      ultimaActualizacionExtract: armado.fuente.ultimaActualizacion, zonaHorariaDocumento: null,
+      ultimaActualizacionExtract: armado.fuente.ultimaActualizacion,
+      ultimaActualizacionHora: armado.fuente.ultimaActualizacionHora, zonaHorariaDocumento: null,
       controlHoja: armado.motor.weeklyFuenteCoincidenciaTexto_(armado.coincidencia) },
     vista };
 }

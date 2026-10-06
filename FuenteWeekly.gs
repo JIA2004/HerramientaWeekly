@@ -28,7 +28,7 @@ function analizarWeeklyAhora() {
   const inicio = new Date();
   const respuesta = { schemaVersion: 'weekly-corrida/1', estado: 'error', inicioIso: inicio.toISOString(),
     finIso: null, duracionMs: 0, origen: { documento: config.documentId, hojaKpis: config.hojaKpis,
-      hojaDatos: config.hojaDatos, zonaHorariaDocumento: null, ultimaActualizacionExtract: null,
+      hojaDatos: config.hojaDatos, zonaHorariaDocumento: null, ultimaActualizacionExtract: null, ultimaActualizacionHora: null,
       filasDuplicadas: 0, semanasHoja: [], coincidencia: null },
     resultado: null, texto: null, error: null };
   try {
@@ -50,8 +50,9 @@ function analizarWeeklyAhora() {
     const aIso = valor => weeklyFuenteFecha_(valor, fecha => Utilities.formatDate(fecha, zona, 'yyyy-MM-dd'));
     const hoy = Utilities.formatDate(inicio, config.zonaSemana, 'yyyy-MM-dd');
     const armado = weeklyFuenteEntrada_(rangoKpis.getValues(), rangoKpis.getFormulas(),
-      rangoDatos.getValues(), aIso, hoy);
+      rangoDatos.getValues(), aIso, hoy, fecha => Utilities.formatDate(fecha, zona, 'HH:mm'));
     respuesta.origen.ultimaActualizacionExtract = armado.fuente.ultimaActualizacion;
+    respuesta.origen.ultimaActualizacionHora = armado.fuente.ultimaActualizacionHora;
     respuesta.origen.filasDuplicadas = armado.fuente.filasDuplicadas;
     respuesta.origen.semanasHoja = armado.lectura.semanasHoja;
     respuesta.origen.coincidencia = armado.coincidencia;
@@ -93,10 +94,10 @@ function probarAnalisisWeekly() {
 
 // ---- Pure builders ----------------------------------------------------------
 
-function weeklyFuenteEntrada_(valoresKpi, formulasKpi, valoresDatos, aIso, hoyIso) {
+function weeklyFuenteEntrada_(valoresKpi, formulasKpi, valoresDatos, aIso, hoyIso, aHora) {
   const lectura = weeklyFuenteFilasKpi_(valoresKpi, formulasKpi, aIso);
   const catalogo = weeklyMotorCatalogo_(lectura.filas);
-  const fuente = weeklyFuenteDatos_(valoresDatos, aIso);
+  const fuente = weeklyFuenteDatos_(valoresDatos, aIso, aHora);
   catalogo.kpis.forEach(kpi => {
     const campo = kpi.def && (kpi.def.tipo === 'campo' || kpi.def.tipo === 'campoSobre') ? kpi.def.campo : null;
     if (campo && fuente.campos.indexOf(campo) === -1) {
@@ -108,7 +109,8 @@ function weeklyFuenteEntrada_(valoresKpi, formulasKpi, valoresDatos, aIso, hoyIs
   const entidades = Object.keys(fuente.datos).sort()
     .map(nombre => ({ nombre: nombre, tipo: nombre.toUpperCase() === 'LATAM' ? 'LATAM' : 'pais' }));
   const entrada = { semanas: fuente.semanas, entidades: entidades, datos: fuente.datos, catalogo: catalogo,
-    semanaEsperada: hoyIso ? weeklyFuenteUltimaCerrada_(hoyIso) : null };
+    semanaEsperada: hoyIso ? weeklyFuenteUltimaCerrada_(hoyIso) : null,
+    ultimaActualizacion: fuente.ultimaActualizacion, filasDuplicadas: fuente.filasDuplicadas };
   return { lectura: lectura, fuente: fuente, entrada: entrada,
     coincidencia: weeklyFuenteCoincidencia_(valoresKpi, lectura, entrada) };
 }
@@ -252,7 +254,7 @@ function weeklyFuenteFilasKpi_(valores, formulas, aIso) {
     columnasSemana: semanas, celdaSelector: celdaSelector, semanasHoja: semanas.map(semana => semana.fecha) };
 }
 
-function weeklyFuenteDatos_(valores, aIso) {
+function weeklyFuenteDatos_(valores, aIso, aHora) {
   if (!valores.length) throw new Error('FUENTE_ESTRUCTURA: el extract está vacío.');
   const titulos = valores[0].map(weeklyFuenteTexto_);
   const colSemana = titulos.indexOf('week_date');
@@ -270,6 +272,7 @@ function weeklyFuenteDatos_(valores, aIso) {
   const vistas = {};
   let duplicadas = 0;
   let ultimaActualizacion = null;
+  let ultimaHora = null;
   for (let f = 1; f < valores.length; f++) {
     const fila = valores[f];
     const semana = aIso(fila[colSemana]);
@@ -286,12 +289,17 @@ function weeklyFuenteDatos_(valores, aIso) {
     }
     if (colActualizacion !== -1) {
       const marca = aIso(fila[colActualizacion]);
-      if (marca && (ultimaActualizacion === null || marca > ultimaActualizacion)) ultimaActualizacion = marca;
+      const hora = marca ? weeklyFuenteHora_(fila[colActualizacion], aHora) : null;
+      if (marca && (ultimaActualizacion === null || marca > ultimaActualizacion ||
+        (marca === ultimaActualizacion && hora !== null && (ultimaHora === null || hora > ultimaHora)))) {
+        ultimaActualizacion = marca;
+        ultimaHora = hora;
+      }
     }
   }
   if (!Object.keys(datos).length) throw new Error('FUENTE_ESTRUCTURA: el extract no tiene filas con semana y país.');
   return { datos: datos, semanas: Object.keys(semanas).sort(), campos: campos.map(campo => campo.nombre),
-    filasDuplicadas: duplicadas, ultimaActualizacion: ultimaActualizacion };
+    filasDuplicadas: duplicadas, ultimaActualizacion: ultimaActualizacion, ultimaActualizacionHora: ultimaHora };
 }
 
 // Blank stays unknown (null), a number stays a number (zero included) and
@@ -320,6 +328,15 @@ function weeklyFuenteFecha_(valor, formatea) {
     return new Date(Math.round((valor - 25569) * 86400000)).toISOString().slice(0, 10);
   }
   return null;
+}
+
+// Time of day (HH:mm) of a date-time cell, or null when it carries no time.
+function weeklyFuenteHora_(valor, formatea) {
+  if (Object.prototype.toString.call(valor) === '[object Date]') return formatea && !isNaN(valor.getTime()) ? formatea(valor) : null;
+  if (typeof valor !== 'number' || valor <= 40000 || valor >= 60000) return null;
+  const minutos = Math.floor((valor - Math.floor(valor)) * 1440 + 1e-6);
+  if (minutos === 0 || minutos >= 1440) return null;
+  return ('0' + Math.floor(minutos / 60)).slice(-2) + ':' + ('0' + minutos % 60).slice(-2);
 }
 
 // Last fully closed Monday-to-Sunday week, identified by its Monday.

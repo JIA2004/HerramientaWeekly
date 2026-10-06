@@ -396,7 +396,9 @@
     id('sello-semana').textContent = rotuloSemana(vista.semana);
     id('sello-semana').hidden = false;
     id('sello-datos').textContent = 'Datos del Sheets · actualizados el ' +
-      (respuesta.origen.ultimaActualizacionExtract ? fechaLarga(respuesta.origen.ultimaActualizacionExtract) : 'fecha no informada');
+      (respuesta.origen.ultimaActualizacionExtract ? fechaLarga(respuesta.origen.ultimaActualizacionExtract) +
+        (respuesta.origen.ultimaActualizacionHora ? ', ' + respuesta.origen.ultimaActualizacionHora : '') : 'fecha no informada');
+    id('sello-datos').className = 'pastilla ' + (vista.provisoria ? 'aviso' : 'bueno');
     id('sello-datos').hidden = false;
     var carga = id('carga');
     limpia(carga);

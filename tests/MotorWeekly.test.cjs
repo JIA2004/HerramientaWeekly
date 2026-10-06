@@ -261,3 +261,57 @@ test('catalog: the key column may be any letter, the row must be the KPI own row
   assert.equal(m.weeklyMotorDefinicion_(formula('AB'), 9, 'orders').campo, 'orders');
   assert.equal(m.weeklyMotorDefinicion_(formula('C'), 10, 'orders'), null);
 });
+
+// Twelve extra fields so a market carries enough of them for the coverage check.
+function conCampos(entrada) {
+  Object.keys(entrada.datos).forEach(pais => {
+    for (let k = 0; k < 12; k++) {
+      const serie = entrada.datos[pais]['extra_' + k] = {};
+      entrada.semanas.forEach(semana => { serie[semana] = 100 + k; });
+    }
+  });
+  return entrada;
+}
+
+test('load state: not refreshed yet is told apart from refreshed without the week', () => {
+  const m = motor();
+  const { entrada, ultima } = escenario();
+  const siguiente = new Date(Date.parse(ultima) + 7 * 86400000).toISOString().slice(0, 10);
+  const lunesActual = new Date(Date.parse(ultima) + 14 * 86400000).toISOString().slice(0, 10);
+  entrada.semanaEsperada = siguiente;
+  entrada.ultimaActualizacion = new Date(Date.parse(lunesActual) - 3 * 86400000).toISOString().slice(0, 10);
+  const pendiente = m.analizarWeekly(entrada);
+  assert.equal(pendiente.globales[0].regla, 'ACTUALIZACION_PENDIENTE');
+  assert.equal(pendiente.provisoria, true);
+  assert.match(pendiente.globales[0].detalle, new RegExp('lo que se muestra es la semana del ' + ultima));
+  entrada.ultimaActualizacion = lunesActual;
+  const ausente = m.analizarWeekly(entrada);
+  assert.equal(ausente.globales[0].regla, 'SEMANA_ESPERADA_AUSENTE');
+  assert.match(ausente.globales[0].detalle, /sí se actualizaron/);
+  entrada.semanaEsperada = ultima;
+  const alDia = m.analizarWeekly(entrada);
+  assert.equal(alDia.provisoria, false);
+  assert.equal(alDia.globales.length, 0);
+});
+
+test('load state: a market loaded half way is one finding and is not interpreted', () => {
+  const m = motor();
+  const { entrada, ultima } = escenario();
+  conCampos(entrada);
+  entrada.semanaEsperada = ultima;
+  const completo = m.analizarWeekly(entrada);
+  assert.equal(completo.provisoria, false);
+  assert.deepEqual(Array.from(completo.cargaParcial), []);
+  Object.keys(entrada.datos.Chile).forEach((campo, i) => { if (i % 2) entrada.datos.Chile[campo][ultima] = null; });
+  const parcial = m.analizarWeekly(entrada);
+  const hallazgo = parcial.globales.find(g => g.regla === 'CARGA_PARCIAL');
+  assert.deepEqual(Array.from(hallazgo.entidades), ['Chile']);
+  assert.equal(parcial.provisoria, true);
+  assert.deepEqual(Array.from(parcial.cargaParcial), ['Chile']);
+  assert.equal(parcial.calidad.filter(h => h.entidad === 'Chile').length, 0, 'no per-KPI noise for a market still loading');
+  assert.equal(parcial.performance.filter(a => a.entidad === 'Chile').length, 0);
+  assert.ok(parcial.calidad.length + parcial.performance.length >= 0);
+  entrada.filasDuplicadas = 2;
+  const repetidas = m.analizarWeekly(entrada).globales.find(g => g.regla === 'FILAS_DUPLICADAS');
+  assert.equal(repetidas.provisoria, undefined);
+});

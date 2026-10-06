@@ -80,7 +80,10 @@ function servicios(hojas, registro) {
         getSheetByName: nombre => (hojas[nombre] ? estricto({ getDataRange: () => rango(hojas[nombre]) }) : null) });
     } }),
     Utilities: estricto({ formatDate: (fecha, zona, formato) => {
-      assert.equal(formato, 'yyyy-MM-dd');
+      assert.ok(['yyyy-MM-dd', 'HH:mm'].includes(formato));
+      if (formato === 'HH:mm') {
+        return new Intl.DateTimeFormat('en-GB', { timeZone: zona, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(fecha);
+      }
       return new Intl.DateTimeFormat('en-CA', { timeZone: zona }).format(fecha);
     } }),
     console: { log: texto => registro.push('log:' + texto) }
