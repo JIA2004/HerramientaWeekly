@@ -126,6 +126,11 @@
   .barra { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 16px; }
   .barra label { color: var(--suave); font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
   .linea { color: var(--suave); font-size: 13px; }
+  .linea.espera { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 96px 0; font-size: 18px; }
+  .linea.espera::before { content: ''; width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--marca-fondo);
+    border-top-color: var(--marca); animation: gira 1s linear infinite; }
+  @keyframes gira { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .linea.espera::before { animation: none; } }
   button.accion { font: inherit; cursor: pointer; border: 1px solid var(--texto); background: var(--texto); color: #fff;
     border-radius: 999px; padding: 7px 18px; }
   button.accion:disabled { cursor: default; opacity: .5; }
@@ -186,7 +191,7 @@
 <main>
   <div class="aviso-caja error" id="error" hidden></div>
   <div class="aviso-caja alerta" id="anterior" hidden></div>
-  <div class="linea" id="subtitulo" style="margin-top:16px">Leyendo el Sheets…</div>
+  <div class="linea espera" id="subtitulo" style="margin-top:16px">Leyendo el Sheets. Tarda unos 15 segundos…</div>
   <div class="barra" style="justify-content:flex-end">
     <button class="accion" id="actualizar" disabled>Volver a leer el Sheets</button>
     <span class="linea" id="estado-lectura"></span>
@@ -375,6 +380,7 @@
           new Date(estado.respuesta.generadoIso).toLocaleString('es-AR') + '. No está actualizado.';
         id('anterior').hidden = false;
       } else {
+        id('subtitulo').className = 'linea';
         id('subtitulo').textContent = 'Sin resultado para mostrar.';
       }
       return;
@@ -391,6 +397,7 @@
     var vista = estado.vista;
     var respuesta = estado.respuesta;
     id('contenido').hidden = false;
+    id('subtitulo').className = 'linea';
     id('subtitulo').textContent = 'Semana del ' + fechaLarga(vista.semana) + ' comparada con la del ' +
       fechaLarga(vista.semanaAnterior) + ' · ' + vista.semanasDisponibles + ' semanas de historia';
     id('sello-semana').textContent = rotuloSemana(vista.semana);
@@ -419,7 +426,10 @@
     id('bloque-advertencias').hidden = !vista.advertencias.length;
     id('bloque-advertencias').open = vista.advertencias.length > 0;
     if (vista.advertencias.length) {
-      carga.appendChild(crea('div', 'aviso-caja alerta', vista.advertencias.length +
+      // Several warnings can belong to one row of the sheet.
+      var filas = {};
+      vista.advertencias.forEach(function (texto) { filas[(/^Fila (\d+)/.exec(texto) || [texto, texto])[1]] = true; });
+      carga.appendChild(crea('div', 'aviso-caja alerta', Object.keys(filas).length +
         ' fila(s) de KPIs no se pudieron interpretar y quedaron fuera del análisis. El detalle está al pie, en "Advertencias del catálogo de KPIs".'));
     }
     lista(id('sin-operacion'), vista.sinOperacion.map(function (item) {
@@ -662,7 +672,8 @@
     fila.appendChild(crea('span', 'donde', item.entidad));
     var medio = crea('div');
     medio.appendChild(crea('strong', '', item.titulo));
-    medio.appendChild(crea('small', '', item.detalle + ' Fila ' + item.fila + '.'));
+    medio.appendChild(crea('small', '', item.detalle + ' Fila ' + item.fila + '.' +
+      (item.historial === 'nueva' ? ' Nuevo esta semana.' : item.historial === 'continua' ? ' También la semana anterior.' : '')));
     fila.appendChild(medio);
     fila.appendChild(derecha);
     return fila;

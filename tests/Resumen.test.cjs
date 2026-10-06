@@ -200,3 +200,45 @@ test('page: the tour is a carousel moved by the reader, never by a timer', () =>
   assert.match(pagina, /id="lamina-siguiente"/);
   assert.doesNotMatch(script, /setInterval|setTimeout/);
 });
+
+test('web entry point: the only doGet serves the story page', () => {
+  const web = fs.readFileSync(path.join(root, 'Web.gs'), 'utf8');
+  assert.match(web, /createHtmlOutputFromFile\('Resumen'\)/);
+  assert.doesNotMatch(web, /\r|[\t ]+$/m);
+  const conDoGet = fs.readdirSync(root).filter(nombre => /\.gs$/.test(nombre))
+    .filter(nombre => /function doGet\(/.test(fs.readFileSync(path.join(root, nombre), 'utf8')));
+  assert.deepEqual(conDoGet, ['Web.gs']);
+  let pedido = null;
+  const salida = { setTitle: titulo => { salida.titulo = titulo; return salida; }, addMetaTag: () => salida };
+  const ctx = vm.createContext({ HtmlService: { createHtmlOutputFromFile: nombre => { pedido = nombre; return salida; } } });
+  vm.runInContext(web, ctx);
+  assert.equal(ctx.doGet(), salida);
+  assert.equal(pedido, 'Resumen');
+  assert.equal(salida.titulo, 'Weekly Performance Review');
+});
+
+test('apps script project: no global name is declared in two files', () => {
+  const vistos = {};
+  fs.readdirSync(root).filter(nombre => /\.gs$/.test(nombre)).forEach(nombre => {
+    const texto = fs.readFileSync(path.join(root, nombre), 'utf8');
+    for (const hallado of texto.matchAll(/^(?:function|const|let|var) +([A-Za-z_0-9]+)/gm)) {
+      assert.equal(vistos[hallado[1]], undefined, hallado[1] + ' is declared in ' + vistos[hallado[1]] + ' and ' + nombre);
+      vistos[hallado[1]] = nombre;
+    }
+  });
+  assert.ok(Object.keys(vistos).length > 40);
+});
+
+test('story page: the short performance list is tagged new or continuing like the full list', () => {
+  const { m, analisis } = resultado();
+  const vista = m.vistaWeekly(analisis);
+  assert.ok(vista.historia.performance.length > 0);
+  assert.ok(vista.historia.performance.every(p => typeof p.uid === 'string' && p.historial === null));
+  const claves = m.weeklyRegistroClavesDe_(vista);
+  m.weeklyRegistroCompara_(vista, claves);
+  assert.ok(vista.historia.performance.every(p => p.historial === 'continua'));
+  m.weeklyRegistroCompara_(vista, { version: 2, movimientos: [], calidad: [] });
+  assert.ok(vista.historia.performance.every(p => p.historial === 'nueva'));
+  m.weeklyRegistroCompara_(vista, null);
+  assert.ok(vista.historia.performance.every(p => p.historial === null));
+});

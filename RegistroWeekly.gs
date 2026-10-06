@@ -243,6 +243,7 @@ function weeklyRegistroCompara_(vista, anteriores) {
   if (!anteriores) {
     vista.movimientos.forEach(m => { m.historial = null; });
     vista.calidad.forEach(c => { c.historial = null; });
+    ((vista.historia && vista.historia.performance) || []).forEach(p => { p.historial = null; });
     return vista;
   }
   const de = item => item.entidad + '|' + (item.uid || item.kpi);
@@ -251,6 +252,8 @@ function weeklyRegistroCompara_(vista, anteriores) {
   const observados = {};
   anteriores.calidad.forEach(c => { observados[c.k] = true; });
   vista.movimientos.forEach(m => { m.historial = movidos[de(m)] ? 'continua' : 'nueva'; });
+  // The short list of the story page shows the same tag as the full list.
+  ((vista.historia && vista.historia.performance) || []).forEach(p => { p.historial = movidos[de(p)] ? 'continua' : 'nueva'; });
   const actuales = {};
   vista.calidad.forEach(c => {
     const clave = de(c) + '|' + c.regla;

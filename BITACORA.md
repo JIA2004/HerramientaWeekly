@@ -68,7 +68,7 @@ spreadsheet interaction.
 
 ## 2026-10-06 — New read-only source, engine, story page (local; partly operator-executed)
 
-Recorded by the operators. Local verification: `node --test tests/*.test.cjs` (206 tests, all passing) and
+Recorded by the operators. Local verification: `node --test tests/*.test.cjs` (63 tests, all passing) and
 `herramientas/analizar.cjs` / `herramientas/vista-previa.cjs` on downloaded `.xlsx` copies.
 
 Operator-reported, **not** produced by an automated test: `probarAnalisisWeekly()` ran in the Apps Script project
@@ -88,5 +88,8 @@ listed below as added later the same day has **not** been run in Apps Script.
 - Added later, local only: a stable KPI `uid` (technical key, or the inputs of a derived row) used to recognise a
   finding from one week to the next. Between copies `(2)` and `(3)` 100 of the 124 common KPIs changed row and 76 changed label;
   all 124 kept their uid.
-- The earlier selector-based files and their documents are kept as history and marked superseded. Current state:
-  `README.md`.
+- Closing the web app for now, local only: `Web.gs` (the single `doGet`, serving `Resumen`), a loading state, the
+  new / continuing tag on the short performance list, and a deployment guide with a live checklist in `README.md`.
+- The earlier selector-based files, their tests and their documents moved to `anterior/` (146 tests, run with
+  `node --test anterior/tests/*.test.cjs`); `tests/` holds the 63 tests of the current tool. Entries above this one
+  name those files by their earlier paths at the repository root. Current state: `README.md`.

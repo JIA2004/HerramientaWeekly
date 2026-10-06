@@ -422,7 +422,7 @@ function weeklyResumenHistoria_(resultado) {
 
   // What to look at.
   const listaPerformance = resultado.performance.slice(0, 5).map(a => ({ entidad: a.entidad, esRegional: a.tipoEntidad === 'LATAM',
-    titulo: a.kpi.etiqueta, fila: a.kpi.fila,
+    titulo: a.kpi.etiqueta, uid: a.kpi.uid, fila: a.kpi.fila, historial: null,
     detalle: weeklyResumenValor_(a.valorAnterior, a.unidad) + ' → ' + weeklyResumenValor_(a.valor, a.unidad) + ', ' + weeklyResumenMedida_(a) + '.',
     cambio: weeklyResumenCambio_(a.cambio, a.unidad), sentido: a.sentido, favorable: a.favorable }));
   const grupos = {};

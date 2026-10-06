@@ -4,6 +4,8 @@ Fecha: 2026-10-06. Autor: Claude (a pedido de Juani). Estado: **propuesta de dis
 
 > La compuerta de fuente descrita en las secciones 2.2, 4 y 6.2 (pendiente / ausente / parcial) y el identificador estable de KPI (`uid`, el `kpi_id` de la sección 5.1) ya están implementados en el motor; siguen pendientes `run_id`, `reglas_version` y el guardado del resultado completo.
 >
+> El lector por selector que este documento menciona (`LectorWeekly.gs`, `Index.txt`, `Web.gs.txt`, etc.) se movió a `anterior/`; el `doGet` vigente está en `Web.gs` y sirve `Resumen`.
+>
 > Actualización del mismo día, después de escribir este documento: se implementaron el control de coincidencia contra la hoja, la página de cuatro capítulos según el diseño de Figma y el carrusel por sección con los KPIs que abren cada bloque de la hoja. Los textos de esa página se arman por reglas. La variante A de este documento (una llamada a un modelo) sería lo que reemplace esos textos por una redacción editorial.
 
 Etiquetas de evidencia usadas en todo el documento:

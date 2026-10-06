@@ -12,7 +12,7 @@ const source = fs.readFileSync(path.join(root, 'OpcionesWeekly.gs'), 'utf8');
 test('normalization: touched scripts, tests and guides use LF without BOM or trailing whitespace', () => {
   for (const name of ['DiagnosticoSheets.gs', 'PruebaSelector.gs', 'LectorWeekly.gs', 'OpcionesWeekly.gs',
     'Index.txt', 'DIAGNOSTICO_SHEETS.md', 'PRUEBA_SELECTOR.md', 'LECTOR_WEEKLY.md',
-    'CONSULTA_WEEKLY.md', 'BITACORA.md',
+    'CONSULTA_WEEKLY.md', '../BITACORA.md',
     'tests/DiagnosticoSheets.test.cjs', 'tests/PruebaSelector.test.cjs', 'tests/LectorWeekly.test.cjs',
     'tests/OpcionesWeekly.test.cjs', 'tests/Index.test.cjs',
     'odd/tasks/webapp-selector-experiment.md', 'odd/tasks/weekly-reader-pilot.md',
