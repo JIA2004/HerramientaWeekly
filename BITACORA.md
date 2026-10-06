@@ -65,3 +65,23 @@ spreadsheet interaction.
   `ReportePaises.gs.txt` and `Web.gs.txt` remain byte-identical.
 - No backend, schema, destination or lock/restoration behavior changed. Deployment access
   and the sheet-content warning in `CONSULTA_WEEKLY.md` still apply unchanged.
+
+## 2026-10-06 — New read-only source, engine, story page (local; partly operator-executed)
+
+Recorded by the operators. Local verification: `node --test tests/*.test.cjs` (201 tests, all passing) and
+`herramientas/analizar.cjs` / `herramientas/vista-previa.cjs` on downloaded `.xlsx` copies.
+
+Operator-reported, **not** produced by an automated test: `probarAnalisisWeekly()` ran in the Apps Script project
+(about 11.5 s, same result as the local run) and the first version of the `Resumen` page worked there. Everything
+listed below as added later the same day has **not** been run in Apps Script.
+
+- The web app no longer changes the country selector. `FuenteWeekly.gs` reads KPI definitions from
+  `2) Weekly por pais` and values from `[Extract] Tabla Weekly`; it never writes. Decision confirmed by Juani.
+- `MotorWeekly.gs` (data quality, performance, explanations), `ResumenWeekly.gs` (text and view model) and
+  `RegistroWeekly.gs` (the only writer, tab `Weekly_Tool_Registro`; saving not yet run live).
+- Added later, local only: the cross-check of engine values against the visible sheet for the selected market; the
+  four-chapter story page after the Figma design; the block column of the sheet and the carousel of block leaders.
+- Sheet copies analysed: `Weekly Performance Review.xlsx`, `(2)` and `(3)`. In `(3)` sections were renamed and two
+  rows (42 `Trials QC`, 68 `VFD/GMV`) have no technical key or direction, so they are reported and not analysed.
+- The earlier selector-based files and their documents are kept as history and marked superseded. Current state:
+  `README.md`.

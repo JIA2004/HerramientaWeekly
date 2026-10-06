@@ -1,5 +1,8 @@
 # Controlled WebApp selector experiment
 
+> **Superseded (2026-10-06).** This document describes the earlier reader, which wrote the country selector of a `WebApp` tab.
+> That tab no longer exists and the web app no longer uses this code. Current state: `README.md`. Kept as history.
+
 `probarSelectorWebApp()` is a manually operated, non-production experiment on the exact **WebApp tab**, not a web endpoint. It changes only H4, compares observations, and attempts to restore H4. Default configuration is inert: the test country is blank. Local synthetic tests are evidence about control flow, not live spreadsheet behavior. No Apps Script execution or deployment has been performed.
 
 ## Future manual use — requires separate authorization

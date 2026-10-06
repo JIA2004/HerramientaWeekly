@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "vista-previa-weekly",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["herramientas/vista-previa.cjs", "C:/Users/juan.aguirre/Downloads/Weekly Performance Review (3).xlsx", "--puerto=8125"],
+      "port": 8125
+    }
+  ]
+}
