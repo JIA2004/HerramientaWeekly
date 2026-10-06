@@ -183,7 +183,7 @@ function vistaWeekly(resultado) {
     texto: weeklyResumenValor_(punto.valor, unidad) }));
   const movimientos = resultado.performance.map(alerta => ({
     entidad: alerta.entidad, esRegional: alerta.tipoEntidad === 'LATAM',
-    kpi: alerta.kpi.etiqueta, fila: alerta.kpi.fila, clave: alerta.kpi.clave,
+    kpi: alerta.kpi.etiqueta, uid: alerta.kpi.uid, fila: alerta.kpi.fila, clave: alerta.kpi.clave,
     sentido: alerta.sentido, favorable: alerta.favorable, severidad: alerta.severidad,
     cambio: weeklyResumenCambio_(alerta.cambio, alerta.unidad),
     de: weeklyResumenValor_(alerta.valorAnterior, alerta.unidad),
@@ -197,7 +197,7 @@ function vistaWeekly(resultado) {
   const calidad = resultado.calidad.map(hallazgo => ({
     entidad: hallazgo.entidad, esRegional: hallazgo.tipoEntidad === 'LATAM',
     regla: hallazgo.regla, titulo: weeklyResumenReglas_[hallazgo.regla] || hallazgo.regla,
-    severidad: hallazgo.severidad, kpi: hallazgo.kpi.etiqueta, fila: hallazgo.kpi.fila,
+    severidad: hallazgo.severidad, kpi: hallazgo.kpi.etiqueta, uid: hallazgo.kpi.uid, fila: hallazgo.kpi.fila,
     clave: hallazgo.kpi.clave, detalle: hallazgo.detalle,
     serie: serie(hallazgo.evidencia, hallazgo.unidad)
   }));

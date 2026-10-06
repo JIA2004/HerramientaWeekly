@@ -2,7 +2,7 @@
 
 Web interna para leer, cada lunes, qué pasó la semana anterior (lunes a domingo) en los 15 países y en LATAM. La idea es que se lea como un cuento en la reunión weekly, no como una tabla de KPIs.
 
-Estado al 2026-10-06: funciona en local sobre copias `.xlsx` (204 tests pasan). La lectura y la página anterior se probaron en Apps Script; el carrusel, el control contra la hoja, el estado de la carga y el guardado **todavía no se probaron en vivo**. No hay trigger ni envíos automáticos.
+Estado al 2026-10-06: funciona en local sobre copias `.xlsx` (206 tests pasan). La lectura y la página anterior se probaron en Apps Script; el carrusel, el control contra la hoja, el estado de la carga y el guardado **todavía no se probaron en vivo**. No hay trigger ni envíos automáticos.
 
 ## Qué muestra la web
 
@@ -21,6 +21,7 @@ Estado al 2026-10-06: funciona en local sobre copias `.xlsx` (204 tests pasan). 
 - **Control de coincidencia**: en cada lectura se comparan los valores del motor con los que la hoja muestra para el mercado elegido en su selector, sin tocarlo. El resultado aparece al pie de la web.
 - **KPIs líderes**: el primer KPI analizable de cada bloque de la hoja, en el orden de la hoja. Nadie los lista en el código.
 - **Estado de la carga**: antes de analizar se revisa si los datos ya se actualizaron este lunes, si traen la última semana cerrada y si algún mercado vino a medias (menos del 80 % de los campos que traía en las tres semanas anteriores; umbral propuesto, sin validar). En cualquiera de esos casos la web lo avisa arriba, no interpreta los mercados incompletos y no guarda la lectura, así la siguiente vez vuelve a leer.
+- **Identidad de cada KPI (`uid`)**: no depende de la fila ni del nombre visible. Si la fila se lee del extract, es su clave técnica (`orders`); si es un cálculo sin clave, se nombra por sus componentes (`orders_food/orders`); si la misma clave aparece en otra fila, lleva su orden de aparición (`orders_dmarts~2`). El historial entre semanas (nuevo / continúa / resuelto) se compara por mercado y `uid`. El `id` por fila (`F9`) sigue existiendo solo para resolver las fórmulas de la hoja.
 - **Nada se ubica por coordenada fija**: encabezado "KPI", columnas de fecha, "WoW", dirección, clave, bloque y selector se encuentran por contenido, porque la hoja cambia de estructura seguido.
 
 ## Reglas que el código respeta
@@ -77,7 +78,7 @@ En Apps Script: pegar `MotorWeekly.gs`, `ResumenWeekly.gs`, `FuenteWeekly.gs`, `
 
 - Probar en Apps Script el carrusel, el control contra la hoja, el estado de la carga y el guardado en `Weekly_Tool_Registro`.
 - El `doGet` del repo (`Web.gs.txt`) todavía sirve `Index`.
-- El identificador interno de un KPI es su fila; cambia si se insertan filas.
+- Una fila sin clave técnica ni fórmula reconocida se identifica por su etiqueta, así que renombrarla le cambia el `uid`. Hoy son las dos filas que no se analizan.
 - Umbrales de alerta sin validar por el equipo; dirección y unidad de cada KPI sin validar.
 - Filas de la hoja que hoy no se analizan porque les falta clave técnica y dirección: aparecen al pie de la web en "Advertencias del catálogo de KPIs".
 - Proveedor de IA sin aprobar (ver `DISENO_AGENTES.md`).

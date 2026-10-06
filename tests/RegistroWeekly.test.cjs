@@ -292,3 +292,24 @@ test('a run on data not refreshed yet is shown with its warning and never saved'
   assert.equal(ctx.obtenerVistaWeekly(false).procedencia, 'lectura');
   assert.ok(estado.lecturasFuente > lecturas, 'the next opening reads the source again');
 });
+
+test('history: a finding is recognised by KPI uid, not by row or visible name', () => {
+  const ctx = mundo({ [KPIS]: hojaKpis(), [DATOS]: hojaDatos(40) }, hoyPara(40)).ctx;
+  const vista = uid => ({ movimientos: [{ entidad: 'Chile', kpi: 'Nombre nuevo › Orders', uid: uid, sentido: 'baja' }],
+    calidad: [{ entidad: 'Chile', kpi: 'Nombre nuevo › Fail Rate', uid: 'fail_rate', regla: 'CERO_SOSPECHOSO', fila: 99,
+      titulo: 'Cero sospechoso', severidad: 'alta' }] });
+  const anterior = vista('orders');
+  anterior.movimientos[0].kpi = 'Overall › Orders';
+  anterior.calidad[0].kpi = 'Overall › Fail Rate';
+  const claves = ctx.weeklyRegistroClavesDe_(anterior);
+  assert.equal(claves.version, 2);
+  assert.equal(claves.movimientos[0].k, 'Chile|orders');
+  const actual = ctx.weeklyRegistroCompara_(vista('orders'), claves);
+  assert.equal(actual.movimientos[0].historial, 'continua', 'renamed and moved, still the same KPI');
+  assert.equal(actual.calidad[0].historial, 'continua');
+  assert.equal(actual.resueltos.length, 0);
+  const viejas = { movimientos: [{ k: 'Chile|Overall › Orders', sentido: 'baja' }], calidad: [] };
+  const sinHistoria = ctx.weeklyRegistroCompara_(vista('orders'), viejas);
+  assert.equal(sinHistoria.conHistorial, false, 'a run saved with name-based keys is not compared');
+  assert.equal(sinHistoria.movimientos[0].historial, null);
+});

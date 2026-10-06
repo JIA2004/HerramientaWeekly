@@ -68,7 +68,7 @@ spreadsheet interaction.
 
 ## 2026-10-06 — New read-only source, engine, story page (local; partly operator-executed)
 
-Recorded by the operators. Local verification: `node --test tests/*.test.cjs` (204 tests, all passing) and
+Recorded by the operators. Local verification: `node --test tests/*.test.cjs` (206 tests, all passing) and
 `herramientas/analizar.cjs` / `herramientas/vista-previa.cjs` on downloaded `.xlsx` copies.
 
 Operator-reported, **not** produced by an automated test: `probarAnalisisWeekly()` ran in the Apps Script project
@@ -85,5 +85,8 @@ listed below as added later the same day has **not** been run in Apps Script.
   rows (42 `Trials QC`, 68 `VFD/GMV`) have no technical key or direction, so they are reported and not analysed.
 - Added later, local only: the load-state gate (data not refreshed yet, refreshed without the week, a market loaded
   half way). Such a run is shown with its warning and never saved. The 80 % coverage threshold is a proposal.
+- Added later, local only: a stable KPI `uid` (technical key, or the inputs of a derived row) used to recognise a
+  finding from one week to the next. Between copies `(2)` and `(3)` 98 KPIs changed row and 74 changed label; every
+  analysed KPI kept its uid.
 - The earlier selector-based files and their documents are kept as history and marked superseded. Current state:
   `README.md`.

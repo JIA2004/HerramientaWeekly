@@ -218,18 +218,26 @@ function weeklyRegistroPaquete_(celdas) {
   }
 }
 
+// What a later week needs to recognise this week's findings. A finding is
+// identified by market and KPI uid, never by row or visible name, so inserting
+// rows or renaming a section in the sheet does not turn a known finding into
+// a new one. version tells apart runs saved with the older name-based keys.
 function weeklyRegistroClavesDe_(vista) {
+  const de = item => item.entidad + '|' + (item.uid || item.kpi);
   return {
-    movimientos: vista.movimientos.map(m => ({ k: m.entidad + '|' + m.kpi, sentido: m.sentido })),
-    calidad: vista.calidad.map(c => ({ k: c.entidad + '|' + c.kpi + '|' + c.regla, entidad: c.entidad,
+    version: 2,
+    movimientos: vista.movimientos.map(m => ({ k: de(m), sentido: m.sentido })),
+    calidad: vista.calidad.map(c => ({ k: de(c) + '|' + c.regla, entidad: c.entidad,
       kpi: c.kpi, fila: c.fila, titulo: c.titulo, severidad: c.severidad }))
   };
 }
 
 // Tags every item as 'nueva' or 'continua' against the previous week's saved
-// run and lists the data findings that are gone. Without a previous run there
-// is nothing to compare and nothing is tagged.
+// run and lists the data findings that are gone. Without a previous run, or
+// with one saved under the older keys, there is nothing to compare and
+// nothing is tagged.
 function weeklyRegistroCompara_(vista, anteriores) {
+  if (anteriores && anteriores.version !== 2) anteriores = null;
   vista.conHistorial = !!anteriores;
   vista.resueltos = [];
   if (!anteriores) {
@@ -237,14 +245,15 @@ function weeklyRegistroCompara_(vista, anteriores) {
     vista.calidad.forEach(c => { c.historial = null; });
     return vista;
   }
+  const de = item => item.entidad + '|' + (item.uid || item.kpi);
   const movidos = {};
   anteriores.movimientos.forEach(m => { movidos[m.k] = m.sentido; });
   const observados = {};
   anteriores.calidad.forEach(c => { observados[c.k] = true; });
-  vista.movimientos.forEach(m => { m.historial = movidos[m.entidad + '|' + m.kpi] ? 'continua' : 'nueva'; });
+  vista.movimientos.forEach(m => { m.historial = movidos[de(m)] ? 'continua' : 'nueva'; });
   const actuales = {};
   vista.calidad.forEach(c => {
-    const clave = c.entidad + '|' + c.kpi + '|' + c.regla;
+    const clave = de(c) + '|' + c.regla;
     actuales[clave] = true;
     c.historial = observados[clave] ? 'continua' : 'nueva';
   });

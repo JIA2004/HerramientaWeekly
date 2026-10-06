@@ -315,3 +315,26 @@ test('load state: a market loaded half way is one finding and is not interpreted
   const repetidas = m.analizarWeekly(entrada).globales.find(g => g.regla === 'FILAS_DUPLICADAS');
   assert.equal(repetidas.provisoria, undefined);
 });
+
+test('identity: the uid of a KPI survives inserted rows and renamed sections, and is unique', () => {
+  const m = motor();
+  const antes = m.weeklyMotorCatalogo_(FILAS).kpis;
+  assert.equal(new Set(antes.map(k => k.uid)).size, antes.length);
+  const porFila = Object.fromEntries(antes.map(k => [k.fila, k]));
+  assert.equal(porFila[9].uid, 'orders');
+  assert.equal(porFila[13].uid, 'orders_food/orders', 'a derived row is named after its inputs');
+  assert.equal(porFila[11].uid, 'orders_dmarts');
+  assert.equal(porFila[17].uid, 'orders_dmarts~2', 'the same extract column on a later row');
+  // Every row moves three places down, formulas follow, and a section is renamed.
+  const corre = texto => (texto ? texto.replace(/([A-Z]\$?)(\d+)/g, (todo, col, fila) => (Number(fila) >= 8 ? col + (Number(fila) + 3) : todo)) : texto);
+  const movidas = FILAS.map(f => Object.assign({}, f, { fila: f.fila + 3, nombre: f.nombre === 'Overall' ? 'Resumen general' : f.nombre,
+    formulaValor: corre(f.formulaValor), formulaVariacion: corre(f.formulaVariacion) }));
+  const despues = m.weeklyMotorCatalogo_(movidas).kpis;
+  assert.equal(despues.length, antes.length);
+  assert.notDeepEqual(Array.from(despues.map(k => k.id)), Array.from(antes.map(k => k.id)));
+  assert.notEqual(despues[0].etiqueta, antes[0].etiqueta);
+  assert.deepEqual(Array.from(despues.map(k => k.uid)), Array.from(antes.map(k => k.uid)));
+  const ref = m.weeklyMotorKpiRef_(despues[0]);
+  assert.equal(ref.uid, 'orders');
+  assert.equal(ref.id, 'F12', 'the row-based id is still there for formulas');
+});

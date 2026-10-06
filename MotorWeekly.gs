@@ -572,7 +572,7 @@ function weeklyMotorAnioAnterior_(cfg, kpi, serie, movimiento) {
 }
 
 function weeklyMotorKpiRef_(kpi) {
-  return { id: kpi.id, fila: kpi.fila, etiqueta: kpi.etiqueta, clave: kpi.clave };
+  return { id: kpi.id, uid: kpi.uid, fila: kpi.fila, etiqueta: kpi.etiqueta, clave: kpi.clave };
 }
 
 function weeklyMotorMediana_(lista) {
@@ -643,6 +643,7 @@ function weeklyMotorCatalogo_(filas) {
     }
     kpis.push(kpi);
   });
+  weeklyMotorIdentidades_(kpis);
   const ids = {};
   kpis.forEach(kpi => { ids[kpi.id] = true; });
   kpis.forEach(kpi => {
@@ -654,6 +655,45 @@ function weeklyMotorCatalogo_(filas) {
     }
   });
   return { kpis, advertencias };
+}
+
+// Gives every KPI a uid that survives edits of the sheet. The id of a KPI is
+// its row ('F9'): it is what formulas point at, and it changes when a row is
+// inserted. The uid does not depend on the row or on the visible names:
+// - a row read from the extract is its technical key (the extract column);
+// - a derived row without a key is named after what it is made of
+//   ('orders_food/orders', 'sum(a+b)'), so it follows its inputs;
+// - a row with neither falls back to its label.
+// The same key on a later row gets its order of appearance added ('~2'), so
+// uids are unique without leaning on a name that can be edited.
+// Anything kept between runs or handed to another program must use the uid.
+function weeklyMotorIdentidades_(kpis) {
+  const porId = {};
+  kpis.forEach(kpi => { porId[kpi.id] = kpi; });
+  const limpia = texto => String(texto).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  const memo = {};
+  const base = (kpi, profundidad) => {
+    if (memo[kpi.id]) return memo[kpi.id];
+    const def = kpi.def;
+    const de = ref => (porId[ref] && profundidad < 6 ? base(porId[ref], profundidad + 1) : '?');
+    let uid;
+    if (kpi.clave !== '') uid = kpi.clave;
+    else if (def && def.tipo === 'razon') uid = de(def.num) + '/' + de(def.den);
+    else if (def && def.tipo === 'producto') uid = de(def.a) + '*' + de(def.b);
+    else if (def && def.tipo === 'suma') uid = 'sum(' + def.partes.map(de).join('+') + ')';
+    else uid = 'fila:' + limpia(kpi.etiqueta);
+    memo[kpi.id] = uid;
+    return uid;
+  };
+  const usados = {};
+  kpis.forEach(kpi => {
+    const raiz = base(kpi, 0);
+    let uid = raiz;
+    for (let n = 2; usados[uid]; n++) uid = raiz + '~' + n;
+    usados[uid] = true;
+    kpi.uid = uid;
+  });
 }
 
 function weeklyMotorDefinicion_(formula, fila, clave) {
