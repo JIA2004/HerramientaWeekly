@@ -1,0 +1,278 @@
+function consultarOrdenesPorPais() {
+  const proyecto = 'peya-food-and-groceries';
+  const ubicacion = 'US';
+  const zonaHoraria = 'America/Argentina/Buenos_Aires';
+
+  const fechaReferencia = Utilities.formatDate(
+    new Date(), zonaHoraria, 'yyyy-MM-dd'
+  );
+
+  // Calculamos las semanas usando fechas UTC para evitar
+  // desplazamientos al convertir entre zonas horarias.
+  function desplazarDias(fechaISO, dias) {
+    const fecha = new Date(fechaISO + 'T00:00:00Z');
+    fecha.setUTCDate(fecha.getUTCDate() + dias);
+    return fecha.toISOString().slice(0, 10);
+  }
+
+  const dia = new Date(fechaReferencia + 'T00:00:00Z').getUTCDay();
+  const lunesActual = desplazarDias(
+    fechaReferencia, -((dia + 6) % 7)
+  );
+  const semanaActual = desplazarDias(lunesActual, -7);
+  const semanaAnterior = desplazarDias(lunesActual, -14);
+
+  // El histórico permite encontrar países que estuvieron presentes
+  // antes, aunque ahora les falte alguna de las semanas esperadas.
+  const sql = `
+    SELECT
+      DATE(week_date) AS week,
+      CAST(country_id AS STRING) AS country_id,
+      country_name,
+      SUM(confirmed_orders) AS confirmed_orders,
+      COUNT(*) AS filas_origen,
+      COUNTIF(
+        confirmed_orders IS NULL OR confirmed_orders < 0
+      ) AS filas_invalidas
+    FROM
+      \`peya-markets.automated_tables_reports.data_weekly_360_temp\`
+    WHERE
+      DATE(week_date) >= DATE_SUB(
+        DATE_TRUNC(@fecha, WEEK(MONDAY)), INTERVAL 10 WEEK
+      )
+      AND DATE(week_date) < DATE_TRUNC(@fecha, WEEK(MONDAY))
+    GROUP BY 1, 2, 3
+    ORDER BY week DESC, country_id
+  `;
+
+  let respuesta = BigQuery.Jobs.query({
+    query: sql,
+    useLegacySql: false,
+    location: ubicacion,
+    timeoutMs: 10000,
+    maxResults: 1000,
+    parameterMode: 'NAMED',
+    queryParameters: [{
+      name: 'fecha',
+      parameterType: { type: 'DATE' },
+      parameterValue: { value: fechaReferencia }
+    }]
+  }, proyecto);
+
+  const jobId = respuesta.jobReference.jobId;
+
+  for (let intento = 0;
+       !respuesta.jobComplete && intento < 10;
+       intento++) {
+    Utilities.sleep(1000);
+    respuesta = BigQuery.Jobs.getQueryResults(proyecto, jobId, {
+      location: ubicacion,
+      timeoutMs: 1000,
+      maxResults: 1000
+    });
+  }
+
+  if (!respuesta.jobComplete) {
+    const pendiente = {
+      estado: 'CONSULTA_EN_PROCESO',
+      jobId: jobId,
+      mensaje: 'La consulta sigue ejecutándose. Revisar el job en BigQuery.'
+    };
+    console.log(JSON.stringify(pendiente, null, 2));
+    return pendiente;
+  }
+
+  const campos = (respuesta.schema.fields || []).map(c => c.name);
+  let registros = respuesta.rows || [];
+
+  // Leer todas las páginas; nunca calcular con una respuesta parcial.
+  let paginas = 1;
+  while (respuesta.pageToken) {
+    if (paginas >= 20) {
+      throw new Error(
+        'La consulta superó el límite de páginas del piloto. Revisar el volumen.'
+      );
+    }
+    respuesta = BigQuery.Jobs.getQueryResults(proyecto, jobId, {
+      location: ubicacion,
+      pageToken: respuesta.pageToken,
+      maxResults: 1000
+    });
+    registros = registros.concat(respuesta.rows || []);
+    paginas++;
+  }
+
+  const filas = registros.map(registro => {
+    const fila = {};
+    campos.forEach((campo, indice) => {
+      fila[campo] = registro.f[indice].v;
+    });
+    return fila;
+  });
+
+  if (!filas.length) {
+    throw new Error('No hay datos en las últimas diez semanas cerradas.');
+  }
+
+  const porId = new Map();
+
+  filas.forEach(fila => {
+    if (fila.country_id === null ||
+        fila.country_id === undefined ||
+        String(fila.country_id).trim() === '' ||
+        !String(fila.country_name || '').trim()) {
+      throw new Error('Hay filas sin identificación de país. Revisar la fuente.');
+    }
+
+    const fecha = new Date(fila.week + 'T00:00:00Z');
+    if (isNaN(fecha.getTime()) ||
+        fecha.toISOString().slice(0, 10) !== fila.week ||
+        fecha.getUTCDay() !== 1) {
+      throw new Error('La fecha semanal no es un lunes válido: ' + fila.week);
+    }
+
+    const id = String(fila.country_id);
+    if (!porId.has(id)) porId.set(id, []);
+    porId.get(id).push(fila);
+  });
+
+  function leerSemana(historial, semana) {
+    const coincidencias = historial.filter(f => f.week === semana);
+
+    if (!coincidencias.length) {
+      return { estado: 'SIN_DATOS', ordenes: null, filas_origen: 0 };
+    }
+
+    if (coincidencias.length !== 1) {
+      return {
+        estado: 'MULTIPLES_REGISTROS',
+        ordenes: null,
+        filas_origen: null
+      };
+    }
+
+    const fila = coincidencias[0];
+    const valor = fila.confirmed_orders;
+    const ordenes = Number(valor);
+    const invalido =
+      valor === null || valor === undefined || valor === '' ||
+      Number(fila.filas_invalidas) > 0 ||
+      !Number.isSafeInteger(ordenes) || ordenes < 0;
+
+    return {
+      estado: invalido ? 'DATOS_INVALIDOS' : 'OK',
+      ordenes: invalido ? null : ordenes,
+      filas_origen: Number(fila.filas_origen)
+    };
+  }
+
+  const resultados = Array.from(porId.entries()).map(([id, historial]) => {
+    historial.sort((a, b) => b.week.localeCompare(a.week));
+
+    const nombres = [...new Set(
+      historial.map(f => String(f.country_name).trim())
+    )];
+    const pais = String(historial[0].country_name).trim();
+    const identidadConsistente = nombres.length === 1;
+
+    const actual = leerSemana(historial, semanaActual);
+    const anterior = leerSemana(historial, semanaAnterior);
+    const comparable = identidadConsistente &&
+      actual.estado === 'OK' && anterior.estado === 'OK';
+
+    const diferencia = comparable
+      ? actual.ordenes - anterior.ordenes
+      : null;
+
+    const porcentaje = comparable && anterior.ordenes !== 0
+      ? Number(((diferencia / anterior.ordenes) * 100).toFixed(2))
+      : null;
+
+    const advertencias = [];
+
+    if (!identidadConsistente) {
+      advertencias.push(
+        'El mismo ID tiene distintos nombres: ' + nombres.join(', ')
+      );
+    }
+    if (actual.estado !== 'OK') {
+      advertencias.push('Semana actual: ' + actual.estado);
+    }
+    if (anterior.estado !== 'OK') {
+      advertencias.push('Semana anterior: ' + anterior.estado);
+    }
+    if (comparable && anterior.ordenes === 0) {
+      advertencias.push('Porcentaje no definido: la base anterior es cero.');
+    }
+
+    return {
+      pais: pais,
+      country_id: id,
+      tipo: nombres.some(n => n.toUpperCase() === 'LATAM')
+        ? 'AGREGADO_REGIONAL' : 'PAIS',
+      estado_calculo: comparable ? 'OK' : 'REVISAR_DATOS',
+      semana_anterior: semanaAnterior,
+      semana_actual_analizada: semanaActual,
+      ordenes_anteriores: anterior.ordenes,
+      ordenes_actuales: actual.ordenes,
+      diferencia_absoluta: diferencia,
+      variacion_porcentual: porcentaje,
+      estado_semana_anterior: anterior.estado,
+      estado_semana_actual: actual.estado,
+      filas_origen_anteriores: anterior.filas_origen,
+      filas_origen_actuales: actual.filas_origen,
+      ultima_semana_disponible: historial[0].week,
+      estado_actualizacion: historial[0].week === semanaActual
+        ? 'AL_DIA' : 'DATOS_DESACTUALIZADOS',
+      completitud_carga: 'NO_VERIFICADA',
+      advertencias: advertencias
+    };
+  }).sort((a, b) => a.pais.localeCompare(b.pais, 'es'));
+
+  const paises = resultados.filter(f => f.tipo === 'PAIS');
+  const agregados = resultados.filter(f => f.tipo === 'AGREGADO_REGIONAL');
+
+  const resultado = {
+    estado: resultados.some(f => f.estado_calculo !== 'OK')
+      ? 'REVISAR_DATOS' : 'OK',
+    fecha_referencia: fechaReferencia,
+    zona_horaria: zonaHoraria,
+    semana_anterior: semanaAnterior,
+    semana_actual_analizada: semanaActual,
+    ultima_semana_esperada: semanaActual,
+    completitud_carga: 'NO_VERIFICADA',
+    cobertura: 'PAISES_OBSERVADOS_EN_ULTIMAS_10_SEMANAS',
+    cantidad_paises: paises.length,
+    paises_comparables: paises.filter(f => f.estado_calculo === 'OK').length,
+    paises: paises,
+    agregados_regionales: agregados,
+    jobId: jobId
+  };
+
+  console.log(JSON.stringify({
+  estado: resultado.estado,
+  semana_anterior: resultado.semana_anterior,
+  semana_actual: resultado.semana_actual_analizada,
+  cantidad_paises: resultado.cantidad_paises,
+  paises_comparables: resultado.paises_comparables,
+  completitud_carga: resultado.completitud_carga,
+  jobId: resultado.jobId
+}));
+
+resultado.paises
+  .concat(resultado.agregados_regionales)
+  .forEach(fila => {
+    console.log(JSON.stringify({
+      pais: fila.pais,
+      id: fila.country_id,
+      tipo: fila.tipo,
+      anteriores: fila.ordenes_anteriores,
+      actuales: fila.ordenes_actuales,
+      variacion: fila.variacion_porcentual,
+      estado: fila.estado_calculo,
+      advertencias: fila.advertencias
+    }));
+  });
+
+return resultado;
+}

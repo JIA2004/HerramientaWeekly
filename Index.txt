@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TC Performance Review</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    :root {
+      --color-bg: #f5f5f5;
+      --color-surface: #ffffff;
+      --color-text: #1a1a1a;
+      --color-text-muted: #6b7280;
+      --color-accent: #FA0050;
+      --color-accent-hover: #d90043;
+      --color-border: #e5e7eb;
+      --color-success: #16a34a;
+      --color-warning: #d97706;
+      --color-error: #dc2626;
+      --radius: 8px;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--color-bg);
+      color: var(--color-text);
+      line-height: 1.55;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px 16px 56px;
+    }
+    .header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .subtitle {
+      font-size: 0.9rem;
+      color: var(--color-text-muted);
+      margin-top: 2px;
+    }
+    .aviso {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-left: 3px solid var(--color-warning);
+      background: #fffbeb;
+      color: #92400e;
+      font-size: 0.85rem;
+      border-radius: 0 var(--radius) var(--radius) 0;
+    }
+    .controls {
+      display: flex;
+      align-items: flex-end;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 20px 0 8px;
+      padding: 16px;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .field label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--color-text-muted);
+    }
+    select, input[type="search"] {
+      font-family: inherit;
+      font-size: 0.9rem;
+      color: var(--color-text);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      min-width: 220px;
+    }
+    button.primary {
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #ffffff;
+      background-color: var(--color-accent);
+      border: none;
+      border-radius: 6px;
+      padding: 9px 22px;
+      cursor: pointer;
+    }
+    button.primary:hover:not(:disabled) {
+      background-color: var(--color-accent-hover);
+    }
+    button.primary:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    .status {
+      min-height: 22px;
+      font-size: 0.88rem;
+      color: var(--color-text-muted);
+      margin: 10px 0 4px;
+    }
+    .status--ok { color: var(--color-success); }
+    .status--cargando { color: var(--color-text-muted); }
+    .status--error { color: var(--color-error); }
+    .status--listo { color: var(--color-text); }
+    .panel-error {
+      margin: 8px 0;
+      padding: 12px 14px;
+      border: 1px solid #fecaca;
+      background: #fef2f2;
+      color: #991b1b;
+      border-radius: var(--radius);
+      font-size: 0.88rem;
+    }
+    .card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-md);
+      margin-top: 16px;
+      overflow: hidden;
+    }
+    .card--obsoleto {
+      border-style: dashed;
+      opacity: 0.85;
+    }
+    .obsoleto {
+      padding: 8px 16px;
+      background: #fffbeb;
+      color: #92400e;
+      font-size: 0.82rem;
+      font-weight: 600;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .card-head {
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .card-head h2 {
+      font-size: 1.05rem;
+      font-weight: 700;
+    }
+    .meta {
+      font-size: 0.82rem;
+      color: var(--color-text-muted);
+      margin-top: 4px;
+    }
+    .badges {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: #f3f4f6;
+      color: #374151;
+    }
+    .badge--ok { background: #dcfce7; color: #166534; }
+    .badge--warn { background: #fef3c7; color: #92400e; }
+    .filtros {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      padding: 12px 16px;
+      background: #fafafa;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .filtros select, .filtros input[type="search"] { min-width: 200px; }
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      color: var(--color-text);
+      padding-bottom: 8px;
+    }
+    .nota {
+      padding: 10px 16px;
+      font-size: 0.8rem;
+      color: var(--color-text-muted);
+      background: #fafafa;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .tabla-scroll { overflow-x: auto; }
+    table {
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      width: 100%;
+    }
+    th, td {
+      border-bottom: 1px solid var(--color-border);
+      padding: 6px 10px;
+      text-align: left;
+      vertical-align: top;
+      white-space: nowrap;
+    }
+    thead th {
+      position: sticky;
+      top: 0;
+      background: var(--color-surface);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--color-text-muted);
+    }
+    th.col-adicional { color: #92400e; }
+    th.fila-nombre {
+      font-weight: 600;
+      white-space: normal;
+      min-width: 180px;
+    }
+    td.celda { padding: 0; }
+    button.valor {
+      font-family: inherit;
+      font-size: 0.85rem;
+      color: var(--color-text);
+      background: transparent;
+      border: none;
+      padding: 6px 10px;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+    }
+    button.valor:hover { background: #f3f4f6; }
+    .sin-dato { color: var(--color-text-muted); }
+    .sin-coincidencias {
+      padding: 16px;
+      font-size: 0.88rem;
+      color: var(--color-text-muted);
+    }
+    details {
+      border-top: 1px solid var(--color-border);
+      padding: 10px 16px;
+    }
+    details summary {
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    details ul, details ol {
+      margin: 8px 0 4px 18px;
+      font-size: 0.85rem;
+    }
+    details li { margin-bottom: 4px; }
+    .detalle {
+      border-top: 1px solid var(--color-border);
+      padding: 12px 16px;
+      font-size: 0.85rem;
+      background: #fafafa;
+    }
+    .detalle-titulo {
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .detalle dl {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 2px 12px;
+    }
+    .detalle dt {
+      font-weight: 600;
+      color: var(--color-text-muted);
+    }
+    .detalle dd { margin: 0; word-break: break-word; }
+    .detalle .aviso-celda {
+      margin-top: 8px;
+      color: #92400e;
+      background: #fffbeb;
+      border-left: 3px solid var(--color-warning);
+      padding: 8px 10px;
+      border-radius: 0 6px 6px 0;
+    }
+    .vacio {
+      margin-top: 16px;
+      font-size: 0.88rem;
+      color: var(--color-text-muted);
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <header class="header">
+      <h1>Consulta Weekly</h1>
+      <p class="subtitle">Lectura del piloto sobre la pesta&ntilde;a WebApp</p>
+      <p class="aviso" id="aviso-piloto">Lectura piloto. Carga y rec&aacute;lculo no verificados.</p>
+    </header>
+
+    <section class="controls">
+      <div class="field">
+        <label for="country">Pa&iacute;s</label>
+        <select id="country">
+          <option value="">Cargando pa&iacute;ses...</option>
+        </select>
+      </div>
+      <button type="button" class="primary" id="consultar" disabled>Consultar</button>
+    </section>
+
+    <p class="status" id="estado" role="status">Cargando las opciones disponibles...</p>
+
+    <section class="panel-error" id="error-panel" hidden>
+      <p id="error-mensaje"></p>
+    </section>
+
+    <section class="card" id="resultado" hidden>
+      <p class="obsoleto" id="resultado-obsoleto" hidden></p>
+      <div class="card-head">
+        <h2 id="resultado-pais"></h2>
+        <p class="meta" id="resultado-lectura"></p>
+        <p class="meta" id="meta-encabezados"></p>
+        <div class="badges">
+          <span class="badge" id="badge-estable"></span>
+          <span class="badge" id="badge-semana-cerrada"></span>
+        </div>
+      </div>
+
+      <div class="filtros">
+        <div class="field">
+          <label for="filtro-nombre">Buscar por nombre</label>
+          <input type="search" id="filtro-nombre" placeholder="Nombre de la fila">
+        </div>
+        <div class="field">
+          <label for="filtro-semana">Semana</label>
+          <select id="filtro-semana"></select>
+        </div>
+        <label class="check"><input type="checkbox" id="mostrar-adicionales"> Mostrar columnas adicionales</label>
+      </div>
+
+      <p class="nota" id="nota-adicionales" hidden>
+        Valores del reporte; interpretaci&oacute;n pendiente. Se muestran tal como est&aacute;n en la hoja, no se
+        recalculan y no se comparan con la semana elegida.
+      </p>
+
+      <div class="tabla-scroll" id="tabla-envoltura"></div>
+
+      <div class="detalle" id="detalle">
+        <p class="detalle-titulo">Detalle de celda</p>
+        <p>Seleccion&aacute; una celda de la tabla para ver su detalle.</p>
+      </div>
+
+      <details id="advertencias">
+        <summary>Advertencias del lector (texto original)</summary>
+        <ul id="advertencias-lista"></ul>
+      </details>
+
+      <details id="inventario">
+        <summary>Ver inventario completo</summary>
+        <div class="tabla-scroll" id="inventario-envoltura"></div>
+      </details>
+    </section>
+
+    <p class="vacio" id="sin-resultado">Todav&iacute;a no hay consultas en esta sesi&oacute;n.</p>
+  </main>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var ESQUEMA_OPCIONES = 'weekly-opciones/1';
+      var ESQUEMA_LECTURA = 'weekly-lectura/3';
+      var TODAS = '__todas__';
+
+      var MENSAJES = {
+        SELECTOR_LOCK_UNAVAILABLE: 'Hay otra lectura en curso sobre la misma hoja. No se reintenta automáticamente: esperá unos segundos y volvé a presionar Consultar.',
+        SELECTOR_DEADLINE: 'La lectura superó el tiempo máximo permitido y se canceló sin mostrar datos.',
+        SELECTOR_UNEXPECTED: 'El país del selector H4 cambió durante la lectura, así que el resultado no es confiable y no se muestra.',
+        SELECTOR_READ_BUDGET: 'La lectura alcanzó el límite de celdas permitido y se canceló sin mostrar datos.',
+        SELECTOR_COUNTRY_NOT_ALLOWED: 'El país elegido no está habilitado por la validación actual de H4.',
+        SELECTOR_UNSAFE_COUNTRY: 'El país elegido no es un valor válido para el selector.',
+        SELECTOR_INITIAL_FORMULA: 'La celda H4 contiene una fórmula y la lectura no se ejecutó.',
+        SELECTOR_UNSAFE_ORIGINAL: 'El valor original de H4 no es un país válido, así que no se leyó la hoja.',
+        SELECTOR_DESTINATION: 'No se encontró la pestaña WebApp en el documento configurado.',
+        SELECTOR_VALIDATION: 'La validación de la celda H4 no tiene un formato admitido.',
+        SELECTOR_OPTIONS_EMPTY: 'La validación de H4 no ofrece ningún país utilizable.',
+        SELECTOR_CONFIG: 'La configuración del lector no es válida.',
+        LECTURA_SIN_ESTABILIDAD: 'No se observaron dos lecturas iguales seguidas, así que no hay datos confiables para mostrar.',
+        LECTURA_ESTRUCTURA_CAMBIADA: 'La estructura de la hoja cambió entre lecturas y el resultado se descartó.',
+        LECTURA_PAIS_INESPERADO: 'El resultado no corresponde al país solicitado, así que no se muestra.',
+        SELECTOR_SERVICE_ERROR: 'La lectura falló por un error no clasificado.'
+      };
+
+      var estado = {
+        opciones: [],
+        consultando: false,
+        paisPendiente: null,
+        resultado: null,
+        resultadoPais: null,
+        resultadoTipo: null,
+        resultadoFecha: null,
+        resultadoObsoleto: false,
+        detalleObservacion: null,
+        detalleContexto: null
+      };
+
+      function nodo(id) {
+        return document.getElementById(id);
+      }
+
+      function crear(etiqueta, clase, texto) {
+        var elemento = document.createElement(etiqueta);
+        if (clase) elemento.className = clase;
+        if (texto !== undefined && texto !== null) elemento.textContent = String(texto);
+        return elemento;
+      }
+
+      function limpiar(elemento) {
+        elemento.textContent = '';
+      }
+
+      function agregar(padre, hijo) {
+        padre.appendChild(hijo);
+        return hijo;
+      }
+
+      function mostrar(elemento, visible) {
+        elemento.hidden = !visible;
+      }
+
+      function normalizar(texto) {
+        return String(texto === null || texto === undefined ? '' : texto).trim().toLowerCase();
+      }
+
+      function textoDeDato(observacion) {
+        if (!observacion) return 'Sin dato';
+        if (observacion.estado === 'vacio') return 'Sin dato';
+        var mostrado = observacion.textoMostrado;
+        var texto = (mostrado === null || mostrado === undefined) ? '' : String(mostrado);
+        if (texto === '') {
+          var valor = observacion.valor;
+          texto = (valor === null || valor === undefined) ? '' : String(valor);
+        }
+        if (texto === '') return 'Sin dato';
+        if (observacion.estado === 'errorOrText') return texto + ' (marcador sin clasificar)';
+        return texto;
+      }
+
+      function valorDeDato(observacion) {
+        if (!observacion) return 'Sin dato';
+        var valor = observacion.valor;
+        if (valor === null || valor === undefined || valor === '') return '(sin valor)';
+        return String(valor);
+      }
+
+      function formatoDeDato(observacion) {
+        var formato = observacion.formato;
+        if (formato === null || formato === undefined || formato === '') return '(sin formato)';
+        return String(formato);
+      }
+
+      function numeroOculto(observacion) {
+        return Boolean(observacion) && observacion.tipo === 'number' &&
+          !/[0-9]/.test(String(observacion.textoMostrado === null || observacion.textoMostrado === undefined
+            ? '' : observacion.textoMostrado));
+      }
+
+      function claveSemana(semana) {
+        return semana.duplicada ? semana.fechaLocal + ' (' + semana.celda + ')' : semana.fechaLocal;
+      }
+
+      function etiquetaSemana(semana) {
+        var texto = semana.fechaLocal + ' · ' + semana.celda;
+        if (semana.duplicada) texto += ' · fecha repetida';
+        if (semana.noEsLunes) texto += ' · no es lunes';
+        return texto;
+      }
+
+      function claveAdicional(columna) {
+        var resultado = estado.resultado;
+        var repetidas = resultado.columnasAdicionales.filter(function (entrada) {
+          return entrada.clasificacion === columna.clasificacion;
+        });
+        return repetidas.length > 1 ? columna.clasificacion + ' (' + columna.celda + ')' : columna.clasificacion;
+      }
+
+      function etiquetaAdicional(columna) {
+        return columna.etiquetaOriginal + ' · ' + columna.celda + ' · interpretación pendiente';
+      }
+
+      function fechaLegible(iso) {
+        if (!iso) return 'sin fecha';
+        return String(iso).replace('T', ' ').replace('Z', ' UTC');
+      }
+
+      function etiquetaEntidad() {
+        return (estado.resultadoTipo === 'LATAM' ? 'Agregado regional: ' : 'País del resultado: ') +
+          estado.resultadoPais;
+      }
+
+      function tituloEntidad() {
+        return estado.resultadoTipo === 'LATAM' ? 'Agregado regional' : 'País del resultado';
+      }
+
+      function definirEstado(texto, clase) {
+        var destino = nodo('estado');
+        destino.className = 'status' + (clase ? ' status--' + clase : '');
+        destino.textContent = texto;
+      }
+
+      function mostrarError(mensaje) {
+        nodo('error-mensaje').textContent = mensaje;
+        mostrar(nodo('error-panel'), true);
+      }
+
+      function ocultarError() {
+        nodo('error-mensaje').textContent = '';
+        mostrar(nodo('error-panel'), false);
+      }
+
+      function mensajeDeCodigo(codigo) {
+        var mensaje = MENSAJES[codigo];
+        if (mensaje) return mensaje;
+        return 'La lectura falló (código: ' + String(codigo) + ').';
+      }
+
+      function renderOpciones() {
+        var selector = nodo('country');
+        limpiar(selector);
+        var inicial = crear('option', null, 'Elegí un país');
+        inicial.value = '';
+        agregar(selector, inicial);
+        estado.opciones.forEach(function (opcion) {
+          var etiqueta = opcion.nombre;
+          if (opcion.tipo === 'LATAM') etiqueta += ' — agregado regional';
+          var elemento = crear('option', null, etiqueta);
+          elemento.value = opcion.nombre;
+          agregar(selector, elemento);
+        });
+        selector.value = '';
+      }
+
+      function falloOpciones(detalle) {
+        var codigo = detalle && detalle.codigo ? detalle.codigo : 'SELECTOR_SERVICE_ERROR';
+        nodo('consultar').disabled = true;
+        definirEstado('No se pudieron cargar los países.', 'error');
+        mostrarError(mensajeDeCodigo(codigo) + ' Recargá la página para volver a intentar.');
+      }
+
+      function recibirOpciones(respuesta) {
+        if (!respuesta || respuesta.schemaVersion !== ESQUEMA_OPCIONES || respuesta.estado !== 'ok' ||
+            !Array.isArray(respuesta.opciones) || respuesta.opciones.length === 0) {
+          falloOpciones(respuesta && respuesta.error ? respuesta.error : null);
+          return;
+        }
+        estado.opciones = respuesta.opciones;
+        renderOpciones();
+        nodo('consultar').disabled = false;
+        ocultarError();
+        definirEstado('Elegí un país y presioná Consultar.', 'listo');
+      }
+
+      function recibirOpcionesError(error) {
+        falloOpciones(error);
+      }
+
+      function consultar() {
+        if (estado.consultando) return;
+        var pais = String(nodo('country').value || '');
+        if (pais === '') {
+          definirEstado('Elegí un país antes de consultar.', 'error');
+          return;
+        }
+        estado.consultando = true;
+        estado.paisPendiente = pais;
+        nodo('consultar').disabled = true;
+        ocultarError();
+        definirEstado('Consultando ' + pais + '...', 'cargando');
+        google.script.run
+          .withSuccessHandler(recibirLectura)
+          .withFailureHandler(recibirLecturaError)
+          .leerWeeklyPorPais(pais);
+      }
+
+      function lecturaAceptable(respuesta, pais) {
+        return Boolean(respuesta) && respuesta.schemaVersion === ESQUEMA_LECTURA &&
+          respuesta.estado === 'ok' && respuesta.datosUtilizables === true &&
+          Boolean(respuesta.lectura) && respuesta.lectura.estableObservada === true &&
+          respuesta.paisSolicitado === pais;
+      }
+
+      function recibirLectura(respuesta) {
+        var pais = estado.paisPendiente;
+        estado.consultando = false;
+        nodo('consultar').disabled = false;
+        if (!lecturaAceptable(respuesta, pais)) {
+          var detalle = respuesta && respuesta.error ? respuesta.error : null;
+          if (!detalle) detalle = { codigo: 'LECTURA_PAIS_INESPERADO' };
+          recibirLecturaError(detalle);
+          return;
+        }
+        estado.resultado = respuesta;
+        estado.resultadoPais = respuesta.entidad && respuesta.entidad.nombre
+          ? respuesta.entidad.nombre : respuesta.paisSolicitado;
+        estado.resultadoTipo = respuesta.entidad && respuesta.entidad.tipo
+          ? respuesta.entidad.tipo : 'pais';
+        estado.resultadoFecha = respuesta.lectura.finIso || respuesta.lectura.inicioIso;
+        estado.resultadoObsoleto = false;
+        // A new accepted reading invalidates any detail open from a previous one.
+        limpiarDetalle();
+        ocultarError();
+        definirEstado('Resultado de ' + estado.resultadoPais + ' listo.', 'ok');
+        renderResultado();
+      }
+
+      function recibirLecturaError(error) {
+        estado.consultando = false;
+        nodo('consultar').disabled = false;
+        var codigo = error && error.codigo ? error.codigo : 'SELECTOR_SERVICE_ERROR';
+        var mensaje = mensajeDeCodigo(codigo);
+        if (error && error.requiereRestauracionManual) {
+          mensaje += ' El valor original de H4 no pudo restaurarse: revisá la celda WebApp!H4 antes de seguir.';
+        }
+        mostrarError(mensaje);
+        definirEstado('La consulta no devolvió datos utilizables.', 'error');
+        if (estado.resultado) {
+          estado.resultadoObsoleto = true;
+          renderResultado();
+        }
+      }
+
+      function renderResultado() {
+        var resultado = estado.resultado;
+        var calidad = resultado.calidad || {};
+        mostrar(nodo('resultado'), true);
+        mostrar(nodo('sin-resultado'), false);
+        nodo('resultado').className = estado.resultadoObsoleto ? 'card card--obsoleto' : 'card';
+
+        var obsoleto = nodo('resultado-obsoleto');
+        if (estado.resultadoObsoleto) {
+          obsoleto.textContent = 'Resultado anterior de ' + estado.resultadoPais + ' (' +
+            fechaLegible(estado.resultadoFecha) + '). La última consulta no devolvió datos.';
+          mostrar(obsoleto, true);
+        } else {
+          obsoleto.textContent = '';
+          mostrar(obsoleto, false);
+        }
+
+        nodo('resultado-pais').textContent = etiquetaEntidad();
+        nodo('resultado-lectura').textContent = 'Lectura: ' + fechaLegible(estado.resultadoFecha) +
+          ' · intentos: ' + String(resultado.lectura.intentos) +
+          ' · duración: ' + String(resultado.lectura.duracionMs) + ' ms' +
+          ' · zona horaria: ' + String(resultado.lectura.zonaHorariaSemanaCerrada);
+        nodo('meta-encabezados').textContent =
+          'Último encabezado semanal: ' + String(calidad.ultimoEncabezado || 'sin dato') +
+          ' · semanas declaradas: ' + String(calidad.semanasDeclaradas) +
+          ' · con observaciones numéricas: ' + String(calidad.semanasConObservacionesNumericas);
+
+        nodo('badge-estable').textContent = resultado.lectura.estableObservada
+          ? 'Lectura estable observada' : 'Lectura no estable';
+        nodo('badge-estable').className = resultado.lectura.estableObservada
+          ? 'badge badge--ok' : 'badge badge--warn';
+        nodo('badge-semana-cerrada').textContent = 'Última semana cerrada esperada: ' +
+          String(calidad.ultimaSemanaCerradaEsperada || 'sin dato') +
+          (calidad.semanaCerradaEsperadaPresente ? ' (presente)' : ' (ausente)');
+        nodo('badge-semana-cerrada').className = calidad.semanaCerradaEsperadaPresente
+          ? 'badge' : 'badge badge--warn';
+
+        renderAdvertencias(resultado.advertencias || []);
+        renderSemanas(resultado.semanas || []);
+        renderInventario(resultado.filas || []);
+        renderTabla();
+        // Repaint the open detail so it follows the result state (current or previous).
+        pintarDetalle();
+      }
+
+      function renderAdvertencias(advertencias) {
+        var lista = nodo('advertencias-lista');
+        limpiar(lista);
+        advertencias.forEach(function (texto) {
+          agregar(lista, crear('li', null, texto));
+        });
+      }
+
+      function renderSemanas(semanas) {
+        var selector = nodo('filtro-semana');
+        limpiar(selector);
+        var todas = crear('option', null, 'Todas');
+        todas.value = TODAS;
+        agregar(selector, todas);
+        semanas.forEach(function (semana) {
+          var elemento = crear('option', null, etiquetaSemana(semana));
+          elemento.value = claveSemana(semana);
+          agregar(selector, elemento);
+        });
+        selector.value = TODAS;
+      }
+
+      function parDeDetalle(lista, etiqueta, valor) {
+        agregar(lista, crear('dt', null, etiqueta));
+        agregar(lista, crear('dd', null, valor));
+      }
+
+      function limpiarDetalle() {
+        estado.detalleObservacion = null;
+        estado.detalleContexto = null;
+        pintarDetalle();
+      }
+
+      function pintarDetalle() {
+        var panel = nodo('detalle');
+        var observacion = estado.detalleObservacion;
+        var contexto = estado.detalleContexto;
+        limpiar(panel);
+        agregar(panel, crear('p', 'detalle-titulo', 'Detalle de celda'));
+        if (!contexto) {
+          agregar(panel, crear('p', null, 'Seleccioná una celda de la tabla para ver su detalle.'));
+          return;
+        }
+        // The detail always says which result it belongs to: a cell is only
+        // meaningful next to the country (or regional aggregate) and the reading
+        // it was captured in.
+        var lista = agregar(panel, crear('dl', null, null));
+        parDeDetalle(lista, tituloEntidad(), estado.resultadoPais);
+        parDeDetalle(lista, 'Lectura', fechaLegible(estado.resultadoFecha) +
+          (estado.resultadoObsoleto ? ' (resultado anterior)' : ''));
+        parDeDetalle(lista, 'Indicador', contexto.indicador);
+        parDeDetalle(lista, 'Período', contexto.periodo);
+        if (!observacion) {
+          agregar(panel, crear('p', null, 'Sin dato para esta celda.'));
+        } else {
+          parDeDetalle(lista, 'Valor original', valorDeDato(observacion));
+          parDeDetalle(lista, 'Texto mostrado', observacion.textoMostrado === ''
+            ? '(vacío)' : String(observacion.textoMostrado));
+          parDeDetalle(lista, 'Formato', formatoDeDato(observacion));
+          parDeDetalle(lista, 'Estado', String(observacion.estado));
+          parDeDetalle(lista, 'Tipo', String(observacion.tipo));
+          parDeDetalle(lista, 'Coordenada', 'WebApp!' + String(observacion.coordenada));
+          if (observacion.hasFormula) {
+            parDeDetalle(lista, 'Contenido', 'La celda contiene una fórmula. No se muestra la fórmula completa.');
+          }
+          if (numeroOculto(observacion)) {
+            agregar(panel, crear('p', 'aviso-celda',
+              'El formato de la hoja no muestra este número. El valor original es ' +
+              valorDeDato(observacion) + '.'));
+          }
+        }
+        if (estado.resultadoObsoleto) {
+          agregar(panel, crear('p', 'aviso-celda',
+            'Este detalle pertenece a un resultado anterior. Volvé a consultar para actualizarlo.'));
+        }
+      }
+
+      function mostrarDetalle(observacion, contexto) {
+        estado.detalleObservacion = observacion;
+        estado.detalleContexto = contexto;
+        pintarDetalle();
+      }
+
+      function celdaDeObservacion(observacion, contexto) {
+        var celda = crear('td', 'celda', null);
+        var boton = crear('button', 'valor', textoDeDato(observacion));
+        boton.type = 'button';
+        if (!observacion || observacion.estado === 'vacio') boton.className = 'valor sin-dato';
+        boton.addEventListener('click', function () {
+          mostrarDetalle(observacion, contexto);
+        });
+        agregar(celda, boton);
+        return celda;
+      }
+
+      function renderTabla() {
+        var resultado = estado.resultado;
+        if (!resultado) return;
+        var contenedor = nodo('tabla-envoltura');
+        limpiar(contenedor);
+        var filtro = normalizar(nodo('filtro-nombre').value);
+        var semanaElegida = nodo('filtro-semana').value;
+        var mostrarAdicionales = nodo('mostrar-adicionales').checked;
+        var filaEncabezados = resultado.origen.coordenadas.filaEncabezados;
+        var semanas = resultado.semanas.filter(function (semana) {
+          return semanaElegida === TODAS || claveSemana(semana) === semanaElegida;
+        });
+        var filas = resultado.filas.filter(function (fila) {
+          return fila.fila > filaEncabezados;
+        }).filter(function (fila) {
+          return filtro === '' || normalizar(fila.nombre).indexOf(filtro) !== -1;
+        });
+        mostrar(nodo('nota-adicionales'), mostrarAdicionales);
+        if (!filas.length) {
+          agregar(contenedor, crear('p', 'sin-coincidencias',
+            'Sin coincidencias para los filtros elegidos.'));
+          return;
+        }
+        var tabla = crear('table', null, null);
+        var cabecera = agregar(tabla, crear('thead', null, null));
+        var filaCabecera = agregar(cabecera, crear('tr', null, null));
+        agregar(filaCabecera, crear('th', 'fila-nombre', 'Nombre'));
+        semanas.forEach(function (semana) {
+          agregar(filaCabecera, crear('th', null, etiquetaSemana(semana)));
+        });
+        if (mostrarAdicionales) {
+          resultado.columnasAdicionales.forEach(function (columna) {
+            agregar(filaCabecera, crear('th', 'col-adicional', etiquetaAdicional(columna)));
+          });
+        }
+        var cuerpo = agregar(tabla, crear('tbody', null, null));
+        filas.forEach(function (fila) {
+          var tr = agregar(cuerpo, crear('tr', null, null));
+          agregar(tr, crear('th', 'fila-nombre', fila.nombre));
+          semanas.forEach(function (semana) {
+            agregar(tr, celdaDeObservacion(fila.observaciones[claveSemana(semana)],
+              { indicador: fila.nombre,
+                periodo: 'semana ' + semana.fechaLocal + ' · columna ' + semana.celda }));
+          });
+          if (mostrarAdicionales) {
+            resultado.columnasAdicionales.forEach(function (columna) {
+              agregar(tr, celdaDeObservacion(fila.adicionales[claveAdicional(columna)],
+                { indicador: fila.nombre,
+                  periodo: 'columna adicional ' + columna.etiquetaOriginal + ' · ' + columna.celda }));
+            });
+          }
+        });
+        agregar(contenedor, tabla);
+      }
+
+      function renderInventario(filas) {
+        var contenedor = nodo('inventario-envoltura');
+        limpiar(contenedor);
+        if (!filas.length) {
+          agregar(contenedor, crear('p', 'sin-coincidencias', 'El inventario llegó vacío.'));
+          return;
+        }
+        var tabla = crear('table', null, null);
+        var cabecera = agregar(tabla, crear('thead', null, null));
+        var filaCabecera = agregar(cabecera, crear('tr', null, null));
+        ['Fila', 'ID', 'Nombre', 'Clasificación', 'Metadatos C:F (sin reinterpretar)'].forEach(function (titulo) {
+          agregar(filaCabecera, crear('th', null, titulo));
+        });
+        var cuerpo = agregar(tabla, crear('tbody', null, null));
+        filas.forEach(function (fila) {
+          var metadatos = ['C', 'D', 'E', 'F'].map(function (letra) {
+            var observacion = fila.metadatos ? fila.metadatos[letra] : null;
+            return letra + '=' + textoDeDato(observacion);
+          }).join(' · ');
+          var tr = agregar(cuerpo, crear('tr', null, null));
+          agregar(tr, crear('td', null, fila.fila));
+          agregar(tr, crear('td', null, fila.id));
+          agregar(tr, crear('th', 'fila-nombre', fila.nombre));
+          agregar(tr, crear('td', null, fila.clasificacion));
+          agregar(tr, crear('td', null, metadatos));
+        });
+        agregar(contenedor, tabla);
+      }
+
+      function conectar() {
+        nodo('consultar').addEventListener('click', consultar);
+        nodo('filtro-nombre').addEventListener('input', renderTabla);
+        nodo('filtro-semana').addEventListener('change', renderTabla);
+        nodo('mostrar-adicionales').addEventListener('change', renderTabla);
+      }
+
+      function iniciar() {
+        conectar();
+        definirEstado('Cargando las opciones disponibles...', 'cargando');
+        google.script.run
+          .withSuccessHandler(recibirOpciones)
+          .withFailureHandler(recibirOpcionesError)
+          .obtenerOpcionesWeekly();
+      }
+
+      iniciar();
+    })();
+  </script>
+</body>
+</html>
