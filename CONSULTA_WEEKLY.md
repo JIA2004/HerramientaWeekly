@@ -1,5 +1,8 @@
 # Weekly consultation frontend (first pilot UI)
 
+> **Superseded (2026-10-06).** This document describes the earlier reader, which wrote the country selector of a `WebApp` tab.
+> That tab no longer exists and the web app no longer uses this code. Current state: `README.md`. Kept as history.
+
 `Index.txt` is the single HTML file served by the existing `doGet()` in `Web.gs.txt`
 (`HtmlService.createHtmlOutputFromFile('Index')`). It is a sober Spanish consultation
 UI over `leerWeeklyPorPais(pais)` from `LectorWeekly.gs`, with its country list coming

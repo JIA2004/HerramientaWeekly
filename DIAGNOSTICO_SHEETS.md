@@ -1,5 +1,8 @@
 # Read-only Weekly Sheets diagnostic
 
+> **Superseded (2026-10-06).** This document describes the earlier reader, which wrote the country selector of a `WebApp` tab.
+> That tab no longer exists and the web app no longer uses this code. Current state: `README.md`. Kept as history.
+
 `DiagnosticoSheets.gs` adds only `diagnosticarWeeklySheets()`. It observes the configured document and exact tab `WebApp`; it does not fix or execute the received application. Local synthetic verification passed; live Apps Script execution is **untested** and deployment is **none**. The shared configuration also contains inert options for the separate [controlled selector experiment](PRUEBA_SELECTOR.md); this diagnostic remains read-only and samples only its original first four candidate columns.
 
 ## Manual editor use — only after separate authorization

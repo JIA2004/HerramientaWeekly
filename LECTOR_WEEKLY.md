@@ -1,5 +1,8 @@
 # Controlled Weekly structured reader pilot
 
+> **Superseded (2026-10-06).** This document describes the earlier reader, which wrote the country selector of a `WebApp` tab.
+> That tab no longer exists and the web app no longer uses this code. Current state: `README.md`. Kept as history.
+
 `LectorWeekly.gs` adds `leerWeeklyPorPais(pais)` (manual pilot reading) and `probarLectorWeekly()` (manual driver). It reuses the shared configuration and the safe selector/diagnostic helpers. It reads only the exact **WebApp tab**, temporarily writes only H4, restores it in `finally` and releases the script lock even on failure. The returned envelope is versioned and serializable; it never certifies completeness, country/data correspondence or recalculation. Schema v3 keeps `semanas` for date-typed weekly headers only and carries comparison/benchmark headers, classified by normalized label, in `columnasAdicionales` with their per-row values in `fila.adicionales`. Because those additional reads happen after `weeklySelectorSnapshot_` closed its own controls, the additional block is bracketed by budgeted H4 control reads and deadline checks: a selector change or an exhausted deadline inside that phase invalidates the whole capture instead of being folded into an accepted reading. Default configuration is inert for `probarLectorWeekly()`: the test country is blank. Local synthetic tests are evidence about control flow, not live spreadsheet behavior. No Apps Script execution or deployment has been performed.
 
 ## Future manual use — requires separate authorization

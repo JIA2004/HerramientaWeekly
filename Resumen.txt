@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weekly — Resumen semanal</title>
+<style>
+  :root { --fondo: #faf5f2; --panel: #ffffff; --suave-fondo: #faf3ef; --borde: #efe6e1; --texto: #1f1d1d; --suave: #6b6461;
+    --marca: #fa0050; --marca-fondo: #ffe1ea; --oscuro: #2a2828;
+    --malo: #d21f3c; --malo-fondo: #fde4e8; --bueno: #14934f; --bueno-fondo: #e2f6ea;
+    --aviso: #b86e00; --aviso-fondo: #fff0cf; --neutro-fondo: #f3eeeb; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fondo); color: var(--texto);
+    font: 15px/1.5 "Nunito", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; }
+  h1, h2, h3, p { margin: 0; }
+  .tope { background: var(--panel); border-bottom: 1px solid var(--borde); padding: 14px 48px; display: flex;
+    flex-wrap: wrap; gap: 10px 24px; align-items: center; justify-content: space-between; }
+  .logo { font-size: 26px; font-weight: 900; color: var(--marca); letter-spacing: -.02em; }
+  .tope .nombre { color: var(--suave); font-size: 17px; margin-left: 28px; }
+  .tope .lado { display: flex; flex-wrap: wrap; gap: 10px; }
+  .pastilla { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 12px; font-size: 12px;
+    font-weight: 700; white-space: nowrap; }
+  .pastilla.bueno { background: var(--bueno-fondo); color: var(--bueno); }
+  .pastilla.malo { background: var(--malo-fondo); color: var(--malo); }
+  .pastilla.aviso { background: var(--aviso-fondo); color: var(--aviso); }
+  .pastilla.marca { background: var(--marca-fondo); color: var(--marca); }
+  .pastilla.neutro { background: var(--neutro-fondo); color: var(--suave); }
+  main { max-width: 1440px; margin: 0 auto; padding: 8px 48px 64px; }
+  .capitulo { color: var(--marca); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; margin-top: 44px; }
+  h2.titulo { font-size: 28px; font-weight: 800; margin-top: 6px; }
+  h3.subtitulo { font-size: 21px; font-weight: 800; margin-top: 36px; }
+  .bajada { color: var(--suave); margin-top: 4px; }
+  .rotulo { font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+  .rotulo.dato { color: var(--marca); } .rotulo.causa { color: var(--aviso); }
+  .tarjeta { background: var(--panel); border: 1px solid var(--borde); border-radius: 20px; padding: 24px; }
+  .grande { font-size: 38px; font-weight: 800; line-height: 1.15; letter-spacing: -.01em; }
+  .fila-valor { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 4px; }
+
+  .heroe { background: var(--marca); color: #fff; border-radius: 24px; padding: 40px; margin-top: 24px; display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 9fr); gap: 40px; }
+  .heroe .sello { display: inline-block; background: rgba(0, 0, 0, .28); border-radius: 999px; padding: 4px 14px; font-size: 12px; font-weight: 700; }
+  .heroe h2 { font-size: 38px; font-weight: 800; line-height: 1.15; margin: 18px 0 14px; }
+  .heroe .rotulo { color: #fff; margin-bottom: 14px; }
+  .trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .heroe .tarjeta { color: var(--texto); border: 0; }
+  .tarjeta .nombre { color: var(--suave); font-size: 14px; }
+  .tarjeta .previo { color: var(--suave); font-size: 12px; margin-top: 8px; }
+  .movida hr { border: 0; border-top: 1px solid var(--borde); margin: 18px 0 14px; }
+  .movida p { margin-top: 4px; }
+  .movida p.gris { color: var(--suave); font-size: 14px; }
+  .movida .rotulo.causa { margin-top: 16px; display: block; }
+  .movida .bloque { color: var(--marca); font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+  .carrusel { margin-top: 20px; background: var(--panel); border: 1px solid var(--borde); border-radius: 24px; padding: 28px; }
+  .carrusel:focus-visible { outline: 3px solid var(--marca-fondo); }
+  .carrusel-cabeza { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .carrusel-cabeza .centro { flex: 1; }
+  .carrusel-cabeza strong { font-size: 24px; font-weight: 800; display: block; }
+  .carrusel-cabeza small { color: var(--suave); font-size: 13px; }
+  .carrusel-cabeza button { font: inherit; font-size: 22px; line-height: 1; cursor: pointer; width: 44px; height: 44px;
+    border-radius: 999px; border: 1px solid var(--borde); background: var(--panel); color: var(--texto); }
+  .carrusel-cabeza button:disabled { opacity: .35; cursor: default; }
+  .carrusel-cabeza button:not(:disabled):hover { background: var(--marca); border-color: var(--marca); color: #fff; }
+  .carrusel .relato { font-size: 17px; max-width: 900px; }
+  .visor { overflow: hidden; margin-top: 14px; touch-action: pan-y; cursor: grab; transition: height .45s cubic-bezier(.22, .8, .3, 1); }
+  .visor.arrastra { cursor: grabbing; user-select: none; }
+  .pista { display: flex; align-items: flex-start; transition: transform .45s cubic-bezier(.22, .8, .3, 1); will-change: transform; }
+  .visor.arrastra .pista { transition: none; }
+  .lamina { flex: 0 0 100%; min-width: 0; padding: 2px; }
+  @media (prefers-reduced-motion: reduce) { .pista, .visor { transition: none; } }
+  .laminas { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; margin-top: 20px; }
+  .laminas .tarjeta { background: var(--suave-fondo); border: 0; }
+  .laminas .tarjeta.fuera { background: var(--panel); border: 2px solid var(--marca); }
+  .puntos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+  .puntos button { font: inherit; font-size: 12px; cursor: pointer; border-radius: 999px; padding: 4px 12px;
+    border: 1px solid var(--borde); background: var(--panel); color: var(--suave); }
+  .puntos button.fuera { border-color: var(--marca); color: var(--marca); font-weight: 800; }
+  .puntos button[aria-pressed=true] { background: var(--texto); border-color: var(--texto); color: #fff; font-weight: 800; }
+
+  .fichas { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+  .fichas button { font: inherit; font-size: 14px; cursor: pointer; background: var(--panel); color: var(--texto);
+    border: 1px solid var(--borde); border-radius: 999px; padding: 7px 18px; }
+  .fichas button[aria-pressed=true] { background: var(--marca); border-color: var(--marca); color: #fff; font-weight: 800; }
+  .pais { margin-top: 20px; display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 10fr); gap: 32px; }
+  .pais h2 { font-size: 40px; font-weight: 900; margin: 16px 0 10px; }
+  .pais .semana { color: var(--suave); font-size: 13px; margin-bottom: 16px; }
+  .pais hr { border: 0; border-top: 1px solid var(--borde); margin: 18px 0 14px; }
+  .pais p.gris { color: var(--suave); font-size: 14px; margin-top: 6px; }
+  .caja { background: var(--suave-fondo); border-radius: 16px; padding: 22px; }
+  .caja .cabeza { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; }
+  .caja .cabeza strong { font-size: 16px; }
+  .caja .cabeza small, .leyenda { color: var(--suave); font-size: 12px; }
+  .caja .cabeza small { display: block; }
+  svg.grafico { display: block; width: 100%; height: auto; margin-top: 10px; }
+  .pais .rotulo.gris { color: var(--suave); display: block; margin: 22px 0 12px; }
+  .pais .tarjeta { background: var(--suave-fondo); border: 0; padding: 18px 20px; }
+  .pais .tarjeta .grande { font-size: 30px; }
+
+  .dos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 24px; }
+  .lista .cabeza { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .lista .cabeza strong { font-size: 20px; display: block; }
+  .lista .cabeza small { color: var(--suave); font-size: 12px; }
+  .renglon { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 14px; align-items: center;
+    border-top: 1px solid var(--borde); padding: 14px 0; }
+  .renglon:first-of-type { margin-top: 18px; }
+  .renglon .donde { background: var(--neutro-fondo); border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; text-align: center; }
+  .renglon strong { display: block; }
+  .renglon small { color: var(--suave); font-size: 13px; }
+
+  .cierre { background: var(--oscuro); color: #fff; border-radius: 24px; padding: 40px; margin-top: 56px; }
+  .cierre h2 { font-size: 30px; font-weight: 800; margin: 8px 0 24px; }
+  .cierre .trio { gap: 40px; }
+  .cierre h3 { font-size: 17px; font-weight: 800; display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .cierre h3 span { background: var(--marca); border-radius: 999px; width: 24px; height: 24px; display: inline-flex;
+    align-items: center; justify-content: center; font-size: 13px; }
+  .cierre p, .cierre li { color: #e6e0dd; font-size: 14px; }
+  .cierre ol { margin: 0; padding-left: 18px; }
+  .cierre .estado { border-top: 1px solid rgba(255, 255, 255, .18); margin-top: 32px; padding-top: 22px; display: flex;
+    flex-wrap: wrap; gap: 10px; align-items: center; }
+  .cierre .estado .rotulo { color: #bdb5b1; margin-right: 6px; }
+  .cierre .estado .pastilla { background: #fff; color: var(--texto); font-weight: 600; }
+
+  .aviso-caja { border-radius: 14px; padding: 12px 16px; margin-top: 16px; }
+  .aviso-caja.error { background: var(--malo-fondo); color: var(--malo); }
+  .aviso-caja.alerta { background: var(--aviso-fondo); color: var(--aviso); }
+  .aviso-caja.info { background: var(--neutro-fondo); color: var(--suave); }
+  .barra { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 16px; }
+  .barra label { color: var(--suave); font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
+  .linea { color: var(--suave); font-size: 13px; }
+  button.accion { font: inherit; cursor: pointer; border: 1px solid var(--texto); background: var(--texto); color: #fff;
+    border-radius: 999px; padding: 7px 18px; }
+  button.accion:disabled { cursor: default; opacity: .5; }
+  select, input[type=search] { font: inherit; padding: 6px 10px; border: 1px solid var(--borde); border-radius: 10px;
+    background: var(--panel); color: var(--texto); min-width: 170px; }
+
+  details.todo { margin-top: 40px; }
+  details.todo > summary { cursor: pointer; font-weight: 800; font-size: 17px; }
+  .pestanas { display: flex; gap: 4px; border-bottom: 1px solid var(--borde); margin-top: 18px; }
+  .pestanas button { font: inherit; cursor: pointer; border: 0; border-bottom: 3px solid transparent; background: none;
+    padding: 9px 14px; color: var(--suave); }
+  .pestanas button[aria-selected=true] { color: var(--texto); border-bottom-color: var(--marca); font-weight: 800; }
+  details.item { background: var(--panel); border: 1px solid var(--borde); border-radius: 14px; margin-top: 8px; }
+  details.item > summary { list-style: none; cursor: pointer; padding: 10px 16px; display: grid;
+    grid-template-columns: 150px 1fr auto 130px; gap: 12px; align-items: center; }
+  details.item > summary::-webkit-details-marker { display: none; }
+  details.item[open] > summary { border-bottom: 1px solid var(--borde); }
+  .mercado { font-weight: 800; }
+  .mercado small, .kpi small, .cambio small { display: block; color: var(--suave); font-weight: 400; }
+  .cambio { font-weight: 800; white-space: nowrap; text-align: right; }
+  .malo { color: var(--malo); } .bueno { color: var(--bueno); }
+  .cuerpo { padding: 12px 16px 16px; }
+  .cuerpo .pastilla { margin-right: 6px; }
+  .cuerpo ul { margin: 6px 0 10px; padding-left: 18px; }
+  .cuerpo h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--suave); margin: 14px 0 4px; }
+  table.serie { border-collapse: collapse; font-size: 12px; }
+  table.serie td, table.serie th { border: 1px solid var(--borde); padding: 3px 8px; text-align: right; white-space: nowrap; }
+  table.serie th { background: var(--neutro-fondo); font-weight: 600; color: var(--suave); }
+  table.serie td.ultima { font-weight: 800; }
+  .rollo { overflow-x: auto; }
+  .vacio { color: var(--suave); padding: 18px 4px; }
+  .pie { margin-top: 22px; color: var(--suave); font-size: 13px; }
+  .pie details { margin-top: 8px; }
+  .pie summary { cursor: pointer; }
+  svg.chispa { display: block; }
+  [hidden] { display: none !important; }
+  @media (max-width: 980px) {
+    .tope, main { padding-left: 16px; padding-right: 16px; }
+    .tope .nombre { margin-left: 12px; }
+    .heroe, .pais, .dos, .trio { grid-template-columns: minmax(0, 1fr); }
+    .heroe, .cierre { padding: 24px; }
+    .heroe h2, .pais h2 { font-size: 30px; }
+    details.item > summary { grid-template-columns: 1fr auto; }
+    svg.chispa { display: none; }
+    .renglon { grid-template-columns: minmax(0, 1fr) auto; }
+    .renglon .donde { grid-column: 1 / -1; justify-self: start; }
+  }
+</style>
+</head>
+<body>
+<header class="tope">
+  <div><span class="logo">PedidosYa</span><span class="nombre">Weekly Performance Review</span></div>
+  <div class="lado">
+    <span class="pastilla bueno" id="sello-datos" hidden></span>
+    <span class="pastilla marca" id="sello-semana" hidden></span>
+  </div>
+</header>
+<main>
+  <div class="aviso-caja error" id="error" hidden></div>
+  <div class="aviso-caja alerta" id="anterior" hidden></div>
+  <div class="linea" id="subtitulo" style="margin-top:16px">Leyendo el Sheets…</div>
+  <div class="barra" style="justify-content:flex-end">
+    <button class="accion" id="actualizar" disabled>Volver a leer el Sheets</button>
+    <span class="linea" id="estado-lectura"></span>
+  </div>
+  <div id="contenido" hidden>
+    <div id="carga"></div>
+
+    <section id="capitulo-region">
+      <div class="capitulo">Capítulo 1 · LATAM</div>
+      <h2 class="titulo">Cómo nos fue esta semana</h2>
+      <div class="heroe">
+        <div>
+          <span class="sello">Resumen de la semana</span>
+          <h2 id="region-titular"></h2>
+          <p id="region-texto"></p>
+        </div>
+        <div>
+          <div class="rotulo">Topline KPIs · vs semana anterior</div>
+          <div class="trio" id="region-topline"></div>
+        </div>
+      </div>
+      <h3 class="subtitulo">La semana, sección por sección</h3>
+      <p class="bajada">El KPI que abre cada bloque de la hoja, en el orden de la hoja. Se pasa con las flechas o eligiendo una sección; las marcadas tienen algo fuera de lo habitual.</p>
+      <div class="carrusel" id="carrusel" tabindex="0">
+        <div class="carrusel-cabeza">
+          <button type="button" id="lamina-anterior" aria-label="Sección anterior">‹</button>
+          <div class="centro"><strong id="lamina-titulo"></strong><small id="lamina-cuenta"></small></div>
+          <button type="button" id="lamina-siguiente" aria-label="Sección siguiente">›</button>
+        </div>
+        <div class="visor" id="lamina-visor"><div class="pista" id="lamina-pista"></div></div>
+        <div class="puntos" id="lamina-puntos"></div>
+      </div>
+    </section>
+
+    <section id="capitulo-pais">
+      <div class="capitulo">Capítulo 2 · País por país</div>
+      <h2 class="titulo">Zoom en un país</h2>
+      <div class="fichas" id="paises"></div>
+      <div class="tarjeta pais">
+        <div>
+          <span class="pastilla marca">Resumen semanal del país</span>
+          <h2 id="pais-nombre"></h2>
+          <div class="semana" id="pais-semana"></div>
+          <p id="pais-texto"></p>
+          <hr>
+          <span class="rotulo causa">Posible causa · hipótesis a validar</span>
+          <p class="gris" id="pais-hipotesis"></p>
+        </div>
+        <div>
+          <div class="caja">
+            <div class="cabeza">
+              <div><strong id="grafico-titulo"></strong><small id="grafico-bajada"></small></div>
+              <span class="leyenda" id="grafico-leyenda"></span>
+            </div>
+            <div id="grafico"></div>
+          </div>
+          <span class="rotulo gris">KPIs más importantes del país esa semana</span>
+          <div class="trio" id="pais-tarjetas"></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="capitulo">Capítulo 3 · Para tener en cuenta</div>
+      <h2 class="titulo">Qué mirar esta semana</h2>
+      <p class="bajada">Dos listas separadas: lo que se movió de verdad y lo que hay que revisar antes de creerle al dato.</p>
+      <div class="dos">
+        <div class="tarjeta lista">
+          <div class="cabeza">
+            <div><strong>Performance</strong><small>Movimientos relevantes en datos válidos</small></div>
+            <span class="pastilla malo" id="cuenta-performance"></span>
+          </div>
+          <div id="lista-performance"></div>
+        </div>
+        <div class="tarjeta lista">
+          <div class="cabeza">
+            <div><strong>Calidad de datos</strong><small>Faltantes e inconsistencias: limitan las conclusiones</small></div>
+            <span class="pastilla aviso" id="cuenta-calidad"></span>
+          </div>
+          <div id="lista-calidad"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cierre">
+      <div class="capitulo" style="margin-top:0">Capítulo 4 · Resumen semanal LATAM</div>
+      <h2 id="cierre-titular"></h2>
+      <div class="trio" id="cierre-pasos"></div>
+      <div class="estado" id="cierre-estado"></div>
+    </section>
+
+    <details class="todo" id="detalle">
+      <summary>Ver todos los movimientos y datos a revisar, con sus valores</summary>
+      <div class="barra">
+        <label>Mercado<select id="filtro-mercado"></select></label>
+        <label>Sentido
+          <select id="filtro-sentido">
+            <option value="">Todos</option>
+            <option value="desfavorable">Desfavorables</option>
+            <option value="favorable">Favorables</option>
+          </select>
+        </label>
+        <label>Buscar KPI<input type="search" id="filtro-texto" placeholder="Ej.: fail rate, orders"></label>
+      </div>
+      <div class="pestanas" role="tablist">
+        <button role="tab" id="tab-movimientos" aria-selected="true">Movimientos</button>
+        <button role="tab" id="tab-calidad" aria-selected="false">Datos a revisar</button>
+      </div>
+      <div id="lista"></div>
+    </details>
+    <div class="pie">
+      <div class="aviso-caja info">Las explicaciones son coincidencias dentro de los mismos datos. Sirven para orientar la revisión; no demuestran la causa.</div>
+      <details><summary>Cómo se decide una alerta y qué no cubre</summary><ul id="limites"></ul></details>
+      <details id="bloque-resueltos"><summary id="titulo-resueltos"></summary><ul id="resueltos"></ul></details>
+      <details id="bloque-sin-operacion"><summary>KPIs sin operación por mercado (no generan alerta)</summary><ul id="sin-operacion"></ul></details>
+      <details id="bloque-advertencias"><summary>Advertencias del catálogo de KPIs</summary><ul id="advertencias"></ul></details>
+      <p id="origen"></p>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  'use strict';
+  var estado = { vista: null, respuesta: null, pestana: 'movimientos', mercado: '', sentido: '', texto: '', pais: '', lamina: 0, leyendo: false };
+  var MENSAJES = {
+    FUENTE_SIN_HOJA: 'No se encontró alguna de las pestañas que usa la herramienta.',
+    FUENTE_ESTRUCTURA: 'La estructura de la hoja cambió y no se pudo interpretar.',
+    FUENTE_DEMASIADO_GRANDE: 'La tabla de datos supera el tamaño que la herramienta acepta leer.',
+    FUENTE_ERROR_DE_SERVICIO: 'No se pudo leer el Sheets. Probá de nuevo en unos minutos.'
+  };
+  var MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  var NS = 'http://www.w3.org/2000/svg';
+  function id(nombre) { return document.getElementById(nombre); }
+  function crea(etiqueta, clase, texto) {
+    var nodo = document.createElement(etiqueta);
+    if (clase) nodo.className = clase;
+    if (texto !== undefined && texto !== null) nodo.textContent = texto;
+    return nodo;
+  }
+  function limpia(nodo) { while (nodo.firstChild) nodo.removeChild(nodo.firstChild); }
+  function fechaCorta(iso) { var p = String(iso).split('-'); return p.length === 3 ? p[2] + '/' + p[1] : String(iso); }
+  function fechaLarga(iso) { var p = String(iso).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : String(iso); }
+  function fecha(iso) { return new Date(iso + 'T00:00:00Z'); }
+  function diaMes(d) { return d.getUTCDate() + ' ' + MESES[d.getUTCMonth()]; }
+  // "Semana 40 · 28 sep – 4 oct 2026" from the Monday that names the week.
+  function rotuloSemana(iso) {
+    var lunes = fecha(iso);
+    if (isNaN(lunes.getTime())) return 'Semana del ' + iso;
+    var domingo = new Date(lunes.getTime() + 6 * 86400000);
+    var jueves = new Date(lunes.getTime() + 3 * 86400000);
+    var inicio = Date.UTC(jueves.getUTCFullYear(), 0, 1);
+    var numero = Math.floor((jueves.getTime() - inicio) / (7 * 86400000)) + 1;
+    return 'Semana ' + numero + ' · ' + diaMes(lunes) + ' – ' + diaMes(domingo) + ' ' + domingo.getUTCFullYear();
+  }
+  function tono(favorable) { return favorable === true ? 'bueno' : favorable === false ? 'malo' : 'neutro'; }
+  function flecha(sentido) { return sentido === 'sube' ? '▲ ' : sentido === 'baja' ? '▼ ' : ''; }
+  function pastillaCambio(item) {
+    return crea('span', 'pastilla ' + tono(item.favorable), item.cambio ? flecha(item.sentido) + item.cambio : 'Dato a revisar');
+  }
+
+  function leer(forzar) {
+    if (estado.leyendo) return;
+    estado.leyendo = true;
+    id('actualizar').disabled = true;
+    id('estado-lectura').textContent = forzar
+      ? 'Leyendo y analizando el Sheets de nuevo. Tarda unos 15 segundos…'
+      : 'Buscando la última corrida. Si hay que leer el Sheets, tarda unos 15 segundos…';
+    google.script.run.withSuccessHandler(recibe).withFailureHandler(function () {
+      recibe({ estado: 'error', error: { codigo: 'FUENTE_ERROR_DE_SERVICIO' } });
+    }).obtenerVistaWeekly(forzar);
+  }
+
+  function recibe(respuesta) {
+    estado.leyendo = false;
+    id('actualizar').disabled = false;
+    id('estado-lectura').textContent = '';
+    var valida = respuesta && respuesta.schemaVersion === 'weekly-vista/2' && respuesta.estado === 'ok' && respuesta.vista;
+    if (!valida) {
+      var error = (respuesta && respuesta.error) || {};
+      var caja = id('error');
+      caja.textContent = (MENSAJES[error.codigo] || MENSAJES.FUENTE_ERROR_DE_SERVICIO) +
+        (error.detalle && error.codigo !== 'FUENTE_ERROR_DE_SERVICIO' ? ' Detalle: ' + error.detalle : '');
+      caja.hidden = false;
+      if (estado.vista) {
+        id('anterior').textContent = 'Lo que se ve abajo es el resultado anterior, leído el ' +
+          new Date(estado.respuesta.generadoIso).toLocaleString('es-AR') + '. No está actualizado.';
+        id('anterior').hidden = false;
+      } else {
+        id('subtitulo').textContent = 'Sin resultado para mostrar.';
+      }
+      return;
+    }
+    id('error').hidden = true;
+    id('anterior').textContent = (respuesta.avisos || []).join(' ');
+    id('anterior').hidden = !(respuesta.avisos || []).length;
+    estado.vista = respuesta.vista;
+    estado.respuesta = respuesta;
+    pintaTodo();
+  }
+
+  function pintaTodo() {
+    var vista = estado.vista;
+    var respuesta = estado.respuesta;
+    id('contenido').hidden = false;
+    id('subtitulo').textContent = 'Semana del ' + fechaLarga(vista.semana) + ' comparada con la del ' +
+      fechaLarga(vista.semanaAnterior) + ' · ' + vista.semanasDisponibles + ' semanas de historia';
+    id('sello-semana').textContent = rotuloSemana(vista.semana);
+    id('sello-semana').hidden = false;
+    id('sello-datos').textContent = 'Datos del Sheets · actualizados el ' +
+      (respuesta.origen.ultimaActualizacionExtract ? fechaLarga(respuesta.origen.ultimaActualizacionExtract) : 'fecha no informada');
+    id('sello-datos').hidden = false;
+    var carga = id('carga');
+    limpia(carga);
+    vista.estadoCarga.forEach(function (item) {
+      carga.appendChild(crea('div', 'aviso-caja error', item.titulo + '. ' + item.detalle));
+    });
+    var selector = id('filtro-mercado');
+    limpia(selector);
+    selector.appendChild(opcion('', 'Todos los mercados'));
+    vista.mercados.forEach(function (mercado) {
+      selector.appendChild(opcion(mercado.nombre, mercado.nombre + (mercado.esRegional ? ' (regional)' : '') +
+        ' — ' + mercado.movimientos + ' mov. / ' + mercado.calidad + ' datos'));
+    });
+    if (!vista.mercados.some(function (m) { return m.nombre === estado.mercado; })) estado.mercado = '';
+    selector.value = estado.mercado;
+    lista(id('limites'), vista.limites);
+    lista(id('advertencias'), vista.advertencias);
+    id('bloque-advertencias').hidden = !vista.advertencias.length;
+    id('bloque-advertencias').open = vista.advertencias.length > 0;
+    if (vista.advertencias.length) {
+      carga.appendChild(crea('div', 'aviso-caja alerta', vista.advertencias.length +
+        ' fila(s) de KPIs no se pudieron interpretar y quedaron fuera del análisis. El detalle está al pie, en "Advertencias del catálogo de KPIs".'));
+    }
+    lista(id('sin-operacion'), vista.sinOperacion.map(function (item) {
+      return item.entidad + ' (' + item.kpis.length + '): ' + item.kpis.join('; ');
+    }));
+    id('bloque-sin-operacion').hidden = !vista.sinOperacion.length;
+    id('origen').textContent = 'Fuente: pestañas "' + respuesta.origen.hojaKpis + '" (definición de KPIs) y "' +
+      respuesta.origen.hojaDatos + '" (valores). Última actualización registrada en los datos: ' +
+      (respuesta.origen.ultimaActualizacionExtract ? fechaLarga(respuesta.origen.ultimaActualizacionExtract) : 'no informada') +
+      '. Lectura: ' + new Date(respuesta.generadoIso).toLocaleString('es-AR') + '.' +
+      (respuesta.origen.controlHoja ? ' Control contra la hoja: ' + respuesta.origen.controlHoja : '');
+    id('estado-lectura').textContent = (respuesta.procedencia === 'guardado'
+      ? 'Corrida guardada el ' : 'Leído del Sheets el ') + new Date(respuesta.generadoIso).toLocaleString('es-AR') +
+      (vista.conHistorial ? '.' : '. Sin corrida guardada de la semana anterior: todavía no se puede marcar qué es nuevo.');
+    var resueltos = vista.resueltos || [];
+    lista(id('resueltos'), resueltos.map(function (item) {
+      return item.entidad + ' — ' + item.kpi + ' (fila ' + item.fila + '): ' + item.titulo;
+    }));
+    id('bloque-resueltos').hidden = !resueltos.length;
+    id('titulo-resueltos').textContent = 'Datos observados la semana anterior que ya no aparecen (' + resueltos.length + ')';
+    pintaHistoria();
+    pintaLista();
+  }
+
+  // ---- The four chapters ---------------------------------------------------------
+
+  function tarjetaKpi(item, conPrevio) {
+    var tarjeta = crea('div', 'tarjeta');
+    tarjeta.appendChild(crea('div', 'nombre', item.nombre));
+    var fila = crea('div', 'fila-valor');
+    fila.appendChild(crea('span', 'grande', item.valor));
+    tarjeta.appendChild(fila);
+    tarjeta.appendChild(pastillaCambio(item));
+    if (conPrevio) tarjeta.appendChild(crea('div', 'previo', 'Sem. anterior: ' + item.anterior));
+    return tarjeta;
+  }
+
+  function tarjetaMovida(item) {
+    var tarjeta = crea('div', 'tarjeta movida' + (item.estado === 'fuera' ? ' fuera' : ''));
+    if (item.bloque && item.bloque.toLowerCase() !== item.nombre.toLowerCase()) tarjeta.appendChild(crea('div', 'bloque', item.bloque));
+    tarjeta.appendChild(crea('div', 'nombre', item.nombre));
+    var fila = crea('div', 'fila-valor');
+    fila.appendChild(crea('span', 'grande', item.valor));
+    fila.appendChild(pastillaCambio(item));
+    tarjeta.appendChild(fila);
+    tarjeta.appendChild(crea('hr'));
+    tarjeta.appendChild(crea('span', 'rotulo dato', 'Lo que vemos · dato'));
+    tarjeta.appendChild(crea('p', '', item.dato));
+    if (item.hipotesis) {
+      tarjeta.appendChild(crea('span', 'rotulo causa', 'Posible causa · hipótesis a validar'));
+      tarjeta.appendChild(crea('p', 'gris', item.hipotesis));
+    }
+    return tarjeta;
+  }
+
+  function pintaHistoria() {
+    var vista = estado.vista;
+    var historia = vista.historia;
+    var hay = !!historia;
+    id('capitulo-region').hidden = !hay || !historia.regional;
+    id('capitulo-pais').hidden = !hay || !historia.paises.length;
+    if (!hay) return;
+    var region = historia.regional;
+    if (region) {
+      id('region-titular').textContent = region.titular;
+      id('region-texto').textContent = region.texto;
+      var topline = id('region-topline');
+      limpia(topline);
+      region.topline.forEach(function (item) { topline.appendChild(tarjetaKpi(item, false)); });
+      armaLaminas();
+    }
+    var fichas = id('paises');
+    limpia(fichas);
+    if (!historia.paises.some(function (p) { return p.nombre === estado.pais; })) estado.pais = historia.paisInicial || '';
+    historia.paises.forEach(function (pais) {
+      var boton = crea('button', '', pais.nombre);
+      boton.type = 'button';
+      boton.setAttribute('aria-pressed', String(pais.nombre === estado.pais));
+      boton.addEventListener('click', function () { estado.pais = pais.nombre; pintaHistoria(); });
+      fichas.appendChild(boton);
+    });
+    var pais = historia.paises.filter(function (p) { return p.nombre === estado.pais; })[0];
+    if (pais) pintaPais(pais, vista.semana);
+
+    id('cuenta-performance').textContent = historia.totalPerformance + ' movimientos';
+    id('cuenta-calidad').textContent = historia.totalCalidad + ' para revisar';
+    var performance = id('lista-performance');
+    limpia(performance);
+    historia.performance.forEach(function (item) {
+      performance.appendChild(renglon(item, crea('span', 'pastilla ' + tono(item.favorable), flecha(item.sentido) + item.cambio)));
+    });
+    if (!historia.performance.length) performance.appendChild(crea('div', 'vacio', 'Sin movimientos fuera de lo habitual.'));
+    var calidad = id('lista-calidad');
+    limpia(calidad);
+    historia.calidad.forEach(function (item) { calidad.appendChild(renglon(item, crea('span', 'pastilla aviso', 'Revisar'))); });
+    if (!historia.calidad.length) calidad.appendChild(crea('div', 'vacio', 'Sin datos a revisar con prioridad alta.'));
+
+    id('cierre-titular').textContent = historia.cierre.titular;
+    var pasos = id('cierre-pasos');
+    limpia(pasos);
+    historia.cierre.pasos.forEach(function (paso, i) {
+      var columna = crea('div');
+      var titulo = crea('h3');
+      titulo.appendChild(crea('span', '', String(i + 1)));
+      titulo.appendChild(document.createTextNode(paso.titulo));
+      columna.appendChild(titulo);
+      if (paso.lista) {
+        var ol = crea('ol');
+        paso.lista.forEach(function (texto) { ol.appendChild(crea('li', '', texto)); });
+        columna.appendChild(ol);
+      } else {
+        columna.appendChild(crea('p', '', paso.texto));
+      }
+      pasos.appendChild(columna);
+    });
+    var respuesta = estado.respuesta;
+    var chips = id('cierre-estado');
+    limpia(chips);
+    chips.appendChild(crea('span', 'rotulo', 'Estado de la información'));
+    ['Última actualización de los datos: ' + (respuesta.origen.ultimaActualizacionExtract
+        ? fechaLarga(respuesta.origen.ultimaActualizacionExtract) : 'no informada'),
+      'Cobertura: ' + historia.paises.length + ' países' + (region ? ' + LATAM' : ''),
+      historia.totalCalidad + ' datos a revisar con prioridad alta (' + vista.conteos.calidadAltas + ' casos entre todos los mercados)',
+      'Las causas son hipótesis, no confirmaciones'].forEach(function (texto) {
+      chips.appendChild(crea('span', 'pastilla', texto));
+    });
+  }
+
+  // The regional tour is a sliding strip: every section of the sheet is a slide,
+  // told through the KPIs that open its blocks. armaLaminas() builds the strip
+  // once per reading; pintaLamina() only slides it and updates the controls.
+  function laminas() { return (estado.vista && estado.vista.historia && (estado.vista.historia.regional || {}).recorrido) || []; }
+
+  function armaLaminas() {
+    var todas = laminas();
+    id('carrusel').hidden = !todas.length;
+    var pista = id('lamina-pista');
+    limpia(pista);
+    todas.forEach(function (lamina) {
+      var hoja = crea('div', 'lamina');
+      hoja.appendChild(crea('p', 'relato', lamina.texto));
+      var tarjetas = crea('div', 'laminas');
+      lamina.tarjetas.forEach(function (item) { tarjetas.appendChild(tarjetaMovida(item)); });
+      hoja.appendChild(tarjetas);
+      pista.appendChild(hoja);
+    });
+    var puntos = id('lamina-puntos');
+    limpia(puntos);
+    todas.forEach(function (lamina, i) {
+      var boton = crea('button', lamina.fuera ? 'fuera' : '', lamina.seccion + (lamina.fuera ? ' · ' + lamina.fuera : ''));
+      boton.type = 'button';
+      boton.addEventListener('click', function () { estado.lamina = i; pintaLamina(); });
+      puntos.appendChild(boton);
+    });
+    pintaLamina();
+  }
+
+  function pintaLamina() {
+    var todas = laminas();
+    if (!todas.length) return;
+    estado.lamina = Math.max(0, Math.min(estado.lamina, todas.length - 1));
+    var pista = id('lamina-pista');
+    pista.style.transform = 'translateX(' + (-100 * estado.lamina) + '%)';
+    Array.prototype.forEach.call(pista.children, function (hoja, i) {
+      // Slides out of view must not be reachable by keyboard or screen reader.
+      if (i === estado.lamina) { hoja.removeAttribute('inert'); hoja.removeAttribute('aria-hidden'); }
+      else { hoja.setAttribute('inert', ''); hoja.setAttribute('aria-hidden', 'true'); }
+    });
+    // The strip is as tall as its tallest slide; the window follows the slide in view.
+    id('lamina-visor').style.height = pista.children[estado.lamina].offsetHeight + 'px';
+    id('lamina-titulo').textContent = todas[estado.lamina].seccion;
+    id('lamina-cuenta').textContent = 'Sección ' + (estado.lamina + 1) + ' de ' + todas.length + ' · LATAM';
+    id('lamina-anterior').disabled = estado.lamina === 0;
+    id('lamina-siguiente').disabled = estado.lamina === todas.length - 1;
+    Array.prototype.forEach.call(id('lamina-puntos').children, function (boton, i) {
+      boton.setAttribute('aria-pressed', String(i === estado.lamina));
+    });
+  }
+  function mueveLamina(paso) { estado.lamina += paso; pintaLamina(); }
+
+  // Dragging or swiping the strip moves one slide; a short drag springs back.
+  // One gesture is one pointer from press to release, and moves one slide at most.
+  function arrastreLaminas() {
+    var visor = id('lamina-visor');
+    var pista = id('lamina-pista');
+    var gesto = null;
+    visor.addEventListener('pointerdown', function (e) {
+      if (gesto || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      gesto = { puntero: e.pointerId, desde: e.clientX, arrastra: false };
+    });
+    visor.addEventListener('pointermove', function (e) {
+      if (!gesto || e.pointerId !== gesto.puntero) return;
+      var corrido = e.clientX - gesto.desde;
+      if (!gesto.arrastra && Math.abs(corrido) < 8) return;
+      if (!gesto.arrastra) {
+        gesto.arrastra = true;
+        visor.classList.add('arrastra');
+        // Keeps the gesture alive when the pointer leaves the strip; not every pointer can be captured.
+        try { visor.setPointerCapture(e.pointerId); } catch (error) { /* the gesture still ends on release */ }
+        var seleccion = window.getSelection && window.getSelection();
+        if (seleccion) seleccion.removeAllRanges();
+      }
+      e.preventDefault();
+      pista.style.transform = 'translateX(calc(' + (-100 * estado.lamina) + '% + ' + corrido + 'px))';
+    });
+    var suelta = function (e) {
+      if (!gesto || e.pointerId !== gesto.puntero) return;
+      var corrido = gesto.arrastra ? e.clientX - gesto.desde : 0;
+      gesto = null;
+      visor.classList.remove('arrastra');
+      var umbral = Math.min(120, visor.clientWidth / 6);
+      if (corrido <= -umbral) estado.lamina += 1;
+      if (corrido >= umbral) estado.lamina -= 1;
+      pintaLamina();
+    };
+    visor.addEventListener('pointerup', suelta);
+    visor.addEventListener('pointercancel', suelta);
+  }
+
+  function pintaPais(pais, semana) {
+    id('pais-nombre').textContent = pais.nombre;
+    id('pais-semana').textContent = rotuloSemana(semana);
+    id('pais-texto').textContent = pais.texto;
+    id('pais-hipotesis').textContent = pais.hipotesis || 'Sin movimientos fuera de lo habitual que explicar.';
+    var tarjetas = id('pais-tarjetas');
+    limpia(tarjetas);
+    pais.tarjetas.forEach(function (item) { tarjetas.appendChild(tarjetaKpi(item, true)); });
+    var caja = id('grafico');
+    limpia(caja);
+    var g = pais.grafico;
+    id('grafico-titulo').textContent = g ? g.contexto + ' › ' + g.nombre : 'Sin datos para graficar';
+    id('grafico-bajada').textContent = g ? pais.nombre + ' · últimas ' + g.serie.length + ' semanas (lunes de cada semana) · fila ' + g.fila : '';
+    id('grafico-leyenda').textContent = g && g.promedioTexto
+      ? '- - - Promedio previo (' + g.semanasPromedio + ' sem.): ' + g.promedioTexto : '';
+    if (g) caja.appendChild(grafico(g));
+  }
+
+  function renglon(item, derecha) {
+    var fila = crea('div', 'renglon');
+    fila.appendChild(crea('span', 'donde', item.entidad));
+    var medio = crea('div');
+    medio.appendChild(crea('strong', '', item.titulo));
+    medio.appendChild(crea('small', '', item.detalle + ' Fila ' + item.fila + '.'));
+    fila.appendChild(medio);
+    fila.appendChild(derecha);
+    return fila;
+  }
+
+  function svg(nombre, atributos, texto) {
+    var nodo = document.createElementNS(NS, nombre);
+    Object.keys(atributos).forEach(function (clave) { nodo.setAttribute(clave, atributos[clave]); });
+    if (texto !== undefined) nodo.textContent = texto;
+    return nodo;
+  }
+
+  // Line of the compared weeks with the average of the previous ones. A week
+  // without data stays a gap in the line.
+  function grafico(g) {
+    var ancho = 760, alto = 250, izq = 64, der = 24, arriba = 18, abajo = 34;
+    var lienzo = svg('svg', { 'class': 'grafico', viewBox: '0 0 ' + ancho + ' ' + alto, role: 'img',
+      'aria-label': g.nombre + ': ' + g.serie.map(function (p) { return fechaCorta(p.semana) + ' ' + p.texto; }).join(', ') });
+    var conocidos = g.serie.filter(function (p) { return p.valor !== null; });
+    if (conocidos.length < 2) {
+      lienzo.appendChild(svg('text', { x: ancho / 2, y: alto / 2, 'text-anchor': 'middle', fill: '#6b6461', 'font-size': 13 },
+        'No hay suficientes semanas con dato para graficar.'));
+      return lienzo;
+    }
+    var valores = conocidos.map(function (p) { return p.valor; });
+    if (g.promedioPrevio !== null) valores.push(g.promedioPrevio);
+    var minimo = Math.min.apply(null, valores), maximo = Math.max.apply(null, valores);
+    var holgura = (maximo - minimo || Math.abs(maximo) || 1) * 0.18;
+    minimo -= holgura; maximo += holgura;
+    var x = function (i) { return izq + i * (ancho - izq - der) / (g.serie.length - 1); };
+    var y = function (v) { return arriba + (maximo - v) * (alto - arriba - abajo) / (maximo - minimo); };
+    var base = alto - abajo;
+    var menor = conocidos.reduce(function (a, b) { return b.valor < a.valor ? b : a; });
+    var mayor = conocidos.reduce(function (a, b) { return b.valor > a.valor ? b : a; });
+    [mayor, menor].forEach(function (p) {
+      lienzo.appendChild(svg('line', { x1: izq, x2: ancho - der, y1: y(p.valor), y2: y(p.valor), stroke: '#efe6e1', 'stroke-width': 1 }));
+      lienzo.appendChild(svg('text', { x: izq - 10, y: y(p.valor) + 4, 'text-anchor': 'end', fill: '#6b6461', 'font-size': 11 }, p.texto));
+    });
+    lienzo.appendChild(svg('line', { x1: izq, x2: ancho - der, y1: base, y2: base, stroke: '#e3d9d3', 'stroke-width': 1 }));
+    var tramos = [];
+    var tramo = [];
+    g.serie.forEach(function (p, i) {
+      if (p.valor === null) { if (tramo.length) tramos.push(tramo); tramo = []; return; }
+      tramo.push([x(i), y(p.valor)]);
+    });
+    if (tramo.length) tramos.push(tramo);
+    tramos.forEach(function (puntos) {
+      if (puntos.length < 2) return;
+      var linea = puntos.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
+      lienzo.appendChild(svg('polygon', { points: puntos[0][0].toFixed(1) + ',' + base + ' ' + linea + ' ' +
+        puntos[puntos.length - 1][0].toFixed(1) + ',' + base, fill: '#fa0050', 'fill-opacity': '.12' }));
+      lienzo.appendChild(svg('polyline', { points: linea, fill: 'none', stroke: '#fa0050', 'stroke-width': 2.5,
+        'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    });
+    if (g.promedioPrevio !== null) {
+      lienzo.appendChild(svg('line', { x1: izq, x2: ancho - der, y1: y(g.promedioPrevio), y2: y(g.promedioPrevio),
+        stroke: '#8f8782', 'stroke-width': 1.5, 'stroke-dasharray': '5 5' }));
+    }
+    g.serie.forEach(function (p, i) {
+      var ultima = i === g.serie.length - 1;
+      lienzo.appendChild(svg('text', { x: x(i), y: alto - 10, 'text-anchor': 'middle', fill: ultima ? '#1f1d1d' : '#6b6461',
+        'font-size': 11, 'font-weight': ultima ? 800 : 400 }, diaMes(fecha(p.semana))));
+      if (p.valor === null) return;
+      lienzo.appendChild(svg('circle', { cx: x(i), cy: y(p.valor), r: ultima ? 5 : 3.5, fill: ultima ? '#fa0050' : '#ffffff',
+        stroke: '#fa0050', 'stroke-width': 2 }));
+    });
+    var final = g.serie[g.serie.length - 1];
+    if (final.valor !== null) {
+      var arribaDelPunto = y(final.valor) > arriba + 26;
+      lienzo.appendChild(svg('text', { x: ancho - der - 12, y: y(final.valor) + (arribaDelPunto ? -12 : 20), 'text-anchor': 'end',
+        fill: '#d21f3c', 'font-size': 12, 'font-weight': 800,
+        stroke: '#faf3ef', 'stroke-width': 4, 'paint-order': 'stroke' }, final.texto + (g.cambio ? ' · ' + g.cambio + ' vs sem. anterior' : '')));
+    }
+    return lienzo;
+  }
+
+  // ---- Full detail -------------------------------------------------------------------
+
+  function opcion(valor, texto) { var o = crea('option', '', texto); o.value = valor; return o; }
+  function lista(nodo, textos) { limpia(nodo); textos.forEach(function (t) { nodo.appendChild(crea('li', '', t)); }); }
+
+  function pasa(item) {
+    if (estado.mercado && item.entidad !== estado.mercado) return false;
+    if (estado.texto) {
+      var donde = (item.kpi + ' ' + (item.clave || '') + ' ' + (item.titulo || '')).toLowerCase();
+      if (donde.indexOf(estado.texto) === -1) return false;
+    }
+    if (estado.pestana === 'movimientos' && estado.sentido) {
+      if (estado.sentido === 'desfavorable' && item.favorable !== false) return false;
+      if (estado.sentido === 'favorable' && item.favorable !== true) return false;
+    }
+    return true;
+  }
+
+  function pintaLista() {
+    var vista = estado.vista;
+    var movimientos = estado.pestana === 'movimientos';
+    id('tab-movimientos').setAttribute('aria-selected', String(movimientos));
+    id('tab-calidad').setAttribute('aria-selected', String(!movimientos));
+    id('filtro-sentido').disabled = !movimientos;
+    var items = (movimientos ? vista.movimientos : vista.calidad).filter(pasa);
+    var contenedor = id('lista');
+    limpia(contenedor);
+    if (!items.length) {
+      contenedor.appendChild(crea('div', 'vacio', movimientos
+        ? 'Sin movimientos fuera de lo habitual para los filtros elegidos.'
+        : 'Sin datos a revisar para los filtros elegidos.'));
+      return;
+    }
+    items.forEach(function (item) { contenedor.appendChild(movimientos ? filaMovimiento(item) : filaCalidad(item)); });
+  }
+
+  function cabecera(item, derecha) {
+    var resumen = crea('summary');
+    var mercado = crea('div', 'mercado', item.entidad);
+    if (item.esRegional) mercado.appendChild(crea('small', '', 'Agregado regional'));
+    resumen.appendChild(mercado);
+    var kpi = crea('div', 'kpi', item.kpi);
+    kpi.appendChild(crea('small', '', 'Fila ' + item.fila + (item.clave ? ' · ' + item.clave : '') +
+      (item.historial === 'nueva' ? ' · Nuevo esta semana' : item.historial === 'continua' ? ' · También la semana anterior' : '')));
+    resumen.appendChild(kpi);
+    resumen.appendChild(derecha);
+    resumen.appendChild(chispa(item.serie));
+    return resumen;
+  }
+
+  function filaMovimiento(item) {
+    var caja = crea('details', 'item');
+    var color = item.favorable === true ? 'bueno' : item.favorable === false ? 'malo' : '';
+    var cambio = crea('div', 'cambio ' + color, flecha(item.sentido) + item.cambio);
+    cambio.appendChild(crea('small', '', item.de + ' → ' + item.a));
+    caja.appendChild(cabecera(item, cambio));
+    var cuerpo = crea('div', 'cuerpo');
+    cuerpo.appendChild(crea('span', 'pastilla ' + tono(item.favorable),
+      item.favorable === true ? 'Favorable' : item.favorable === false ? 'Desfavorable' : 'Sin dirección definida'));
+    cuerpo.appendChild(crea('span', 'pastilla neutro', item.medida));
+    if (item.explicaciones.length) {
+      cuerpo.appendChild(crea('h3', '', 'Qué más muestran los datos (hipótesis)'));
+      var ul = crea('ul');
+      item.explicaciones.forEach(function (texto) { ul.appendChild(crea('li', '', texto)); });
+      cuerpo.appendChild(ul);
+    }
+    cuerpo.appendChild(tabla(item.serie));
+    caja.appendChild(cuerpo);
+    return caja;
+  }
+
+  function filaCalidad(item) {
+    var caja = crea('details', 'item');
+    var clase = item.severidad === 'alta' ? 'malo' : item.severidad === 'media' ? 'aviso' : 'neutro';
+    var derecha = crea('div', 'cambio');
+    derecha.appendChild(crea('span', 'pastilla ' + clase, item.titulo));
+    caja.appendChild(cabecera(item, derecha));
+    var cuerpo = crea('div', 'cuerpo');
+    cuerpo.appendChild(crea('span', 'pastilla ' + clase, 'Prioridad ' + item.severidad));
+    cuerpo.appendChild(crea('p', '', item.detalle));
+    if (item.serie.length) cuerpo.appendChild(tabla(item.serie));
+    caja.appendChild(cuerpo);
+    return caja;
+  }
+
+  function tabla(serie) {
+    var rollo = crea('div', 'rollo');
+    rollo.appendChild(crea('h3', '', 'Valores comparados'));
+    var t = crea('table', 'serie');
+    var cabeza = crea('tr');
+    var valores = crea('tr');
+    serie.forEach(function (punto, i) {
+      cabeza.appendChild(crea('th', '', fechaCorta(punto.semana)));
+      valores.appendChild(crea('td', i === serie.length - 1 ? 'ultima' : '', punto.texto));
+    });
+    t.appendChild(cabeza);
+    t.appendChild(valores);
+    rollo.appendChild(t);
+    return rollo;
+  }
+
+  // Small trend line of the compared weeks; gaps stay as gaps.
+  function chispa(serie) {
+    var ancho = 130, alto = 30, margen = 3;
+    var lienzo = svg('svg', { 'class': 'chispa', width: ancho, height: alto, 'aria-hidden': 'true' });
+    var numeros = serie.map(function (p) { return p.valor; }).filter(function (v) { return v !== null; });
+    if (numeros.length < 2) return lienzo;
+    var minimo = Math.min.apply(null, numeros), maximo = Math.max.apply(null, numeros);
+    var rango = maximo - minimo || 1;
+    var x = function (i) { return margen + i * (ancho - 2 * margen) / (serie.length - 1); };
+    var y = function (v) { return alto - margen - (v - minimo) * (alto - 2 * margen) / rango; };
+    var tramo = [];
+    var cierra = function () {
+      if (tramo.length > 1) {
+        lienzo.appendChild(svg('polyline', { points: tramo.join(' '), fill: 'none', stroke: '#8f8782', 'stroke-width': 1.5 }));
+      }
+      tramo = [];
+    };
+    serie.forEach(function (punto, i) {
+      if (punto.valor === null) { cierra(); return; }
+      tramo.push(x(i).toFixed(1) + ',' + y(punto.valor).toFixed(1));
+    });
+    cierra();
+    var ultimo = serie[serie.length - 1];
+    if (ultimo.valor !== null) {
+      lienzo.appendChild(svg('circle', { cx: x(serie.length - 1).toFixed(1), cy: y(ultimo.valor).toFixed(1), r: 3, fill: '#1f1d1d' }));
+    }
+    return lienzo;
+  }
+
+  id('actualizar').addEventListener('click', function () { leer(true); });
+  id('lamina-anterior').addEventListener('click', function () { mueveLamina(-1); });
+  id('lamina-siguiente').addEventListener('click', function () { mueveLamina(1); });
+  arrastreLaminas();
+  window.addEventListener('resize', pintaLamina);
+  id('carrusel').addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowLeft') mueveLamina(-1);
+    if (e.key === 'ArrowRight') mueveLamina(1);
+  });
+  id('filtro-mercado').addEventListener('change', function (e) { estado.mercado = e.target.value; pintaLista(); });
+  id('filtro-sentido').addEventListener('change', function (e) { estado.sentido = e.target.value; pintaLista(); });
+  id('filtro-texto').addEventListener('input', function (e) { estado.texto = e.target.value.trim().toLowerCase(); pintaLista(); });
+  id('tab-movimientos').addEventListener('click', function () { estado.pestana = 'movimientos'; pintaLista(); });
+  id('tab-calidad').addEventListener('click', function () { estado.pestana = 'calidad'; pintaLista(); });
+  leer(false);
+})();
+</script>
+</body>
+</html>
