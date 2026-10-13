@@ -93,3 +93,88 @@ listed below as added later the same day has **not** been run in Apps Script.
 - The earlier selector-based files, their tests and their documents moved to `anterior/` (146 tests, run with
   `node --test anterior/tests/*.test.cjs`); `tests/` holds the 63 tests of the current tool. Entries above this one
   name those files by their earlier paths at the repository root. Current state: `README.md`.
+
+## 2026-10-07 — Roadmap steps 1 to 3: KPI dictionary and reading validation (local only)
+
+Recorded by the operators. Local verification: `node --test tests/*.test.cjs` (72 tests, all passing),
+`node --test anterior/tests/*.test.cjs` (146, all passing) and the three tools run on the copy
+`Weekly Performance Review.xlsx` downloaded that day. Nothing here was run in Apps Script.
+
+- The copy has 131 KPI rows (126 in copy `(3)`). New rows without a technical key or a direction are reported and
+  not analysed; four rows are out of the first version for that reason.
+- `MotorWeekly.gs`: a row whose formula is the remainder of 100 % (`=100%-N71-N73`) is now read (`complemento`),
+  with a missing share leaving it unknown. Its nine visible values match the sheet in this copy. This file has to be
+  pasted again into Apps Script for the row to show up there.
+- `herramientas/diccionario.cjs` (step 2, and the KPI scope of step 1): per row, stable uid, how it is obtained, unit,
+  favourable direction, coverage and the description found in `Weekly_Glossary`. On this copy: 127 rows in the first
+  version, 70 with a description, 18 whose key is looked up by a name that is repeated in the glossary, 4 whose name
+  says millions while the values are in units.
+- `herramientas/validar.cjs` (step 3): ten controls. On this copy nine pass; the tenth (visible sheet against the
+  extract, selector on Argentina) reports 7 of 1143 values, all on one row that has a formula in only one of its nine
+  weekly columns, so the sheet is blank where the extract has data. No extract cell held text or an error.
+- Only one market per copy is compared against the visible sheet. The other fifteen are covered by recomputing every
+  market and week with the rule of the sheet's formulas, not by looking at the sheet.
+- The copy carries a `Weekly_Tool_Registro` tab with one saved run (week 2026-09-28): seen in the export, not
+  operator-reported.
+- Added the same day, local only: `diccionario.cjs` also writes `contexto-agente.md` / `.json`, the dictionary turned
+  into context for a data agent that queries the weekly table: one entry per extract column, the calculated KPIs as
+  formulas over column names, the reading rules and the visible names shared by several columns. It carries no
+  figure. On this copy: 100 columns (43 without a definition in the glossary) and 19 calculated KPIs. Not tried with
+  any agent.
+
+## 2026-10-07 — Page redesign: three chapters, chart picked by the reader, data-to-review lists (local only)
+
+Recorded by the operators. Local verification: `node --test tests/*.test.cjs` (74 tests, all passing),
+`node --test anterior/tests/*.test.cjs` (146, all passing) and the page opened in the local preview on the copy
+`Weekly Performance Review.xlsx` downloaded that day. Nothing here was run in Apps Script.
+
+- The page follows the three mock-ups Juani sent. Chapter 1: headline, topline and "Lo que más se movió" with up to
+  four KPIs of LATAM taken from both sides (`weeklyMotorAltosYBajos_`). Chapter 2: per country, the KPI that moved
+  the most opens in the chart and the others are cards; picking a card swaps it with the charted one. Chapter 3: the
+  closing summary. Below it, "Datos a revisar esta semana" and "Datos a revisar semana pasada" (the second read from
+  the run saved in `Weekly_Tool_Registro`), plus the reading notes.
+- Removed from the page: the carousel by section, the chapter "Qué mirar esta semana" and the full detail with
+  filters. The engine no longer builds the section tour; all movements are still computed and saved.
+- The page payload changed shape: `weekly-vista/3`, `vista.formato = 3`, `vista.revisar`, `historia.regional.movidas`
+  and `kpis` per country. A run saved with the previous shape is read again instead of being served.
+- Seen in the preview on that copy: four cards for LATAM, four KPIs for each of the 15 countries, 25 groups of data
+  to review for the week. The previous-week list showed the "no saved run" notice, because the preview has no
+  registry; with keys built by hand in a script it listed and tagged the groups.
+- `MotorWeekly`, `ResumenWeekly`, `RegistroWeekly` and `Resumen` have to be pasted again together.
+- The texts are still assembled by rule. An agent writing them is an idea, not designed or connected.
+
+## 2026-10-09 — Segments per market and KPI names as written in the sheet (local only)
+
+Recorded by the operators. Local verification: `node --test tests/*.test.cjs` (78 tests, all passing) and the page
+opened in the local preview on the copy `Weekly Performance Review (2).xlsx` downloaded that day. Nothing here was
+run in Apps Script.
+
+- Asked by the team lead through Juani: the four KPIs that moved the most in a country can leave out more
+  interesting ones, so chapter 2 now has one button per section of the sheet plus "Todo el país".
+  `weeklyMotorPanorama_` adds `secciones` to every entity and `weeklyMotorDeSeccion_` picks up to four KPIs per
+  section: the strongest moves against their own usual variation first, the KPI that opens the section always
+  among them, then the other block leaders. KPIs a market does not operate are left out.
+- Every KPI of a segment carries its own `dato` and `hipotesis`; the left side of the page tells about the KPI in
+  the chart. A move inside the usual range gets only how it is built (parts or numerator and denominator), without
+  the list of simultaneous moves.
+- KPI names: the Spanish names by technical key (Órdenes, GMV confirmado, Clientes activos) were removed. Cards and
+  sentences use the row's name in the sheet ("Orders - Total"), with its group when it has one ("Order Share › Food").
+- Payload: `vista.formato = 4`; per country `segmentos` and `nota` replace `kpis` and `hipotesis`; chart data is
+  compact (`grafico.valores` / `textos`, weeks once in `historia.semanasGrafico`). On that copy the saved run takes 12
+  of the 20 cells the registry allows (it took 4 before).
+- Seen in the preview on that copy: nine sections as buttons in the 15 countries, the count of moved KPIs next to each
+  name, the segment kept when changing country, the card swap working inside a segment, no console errors and no
+  horizontal scroll at phone width.
+- The priority column Juani proposed for the sheet does not exist yet; nothing reads it.
+- `MotorWeekly`, `ResumenWeekly` and `Resumen` have to be pasted again together.
+
+## 2026-10-13 — AI-text gate (local only)
+
+- Added `weeklyMotorCompuertaIa_` to `MotorWeekly.gs` (pure) and `probarCompuertaIaWeekly` to `FuenteWeekly.gs`. It blocks on provisional load findings, a degraded catalog, or zeros in bulk (`CEROS_EN_BLOQUE`: share of a market's read KPIs flagged `CERO_SOSPECHOSO`; thresholds `iaCeroPorMercado` 0.25 and `iaMercadosConCeroMax` 0 are unvalidated proposals).
+- Tests: 7 gate tests in `MotorWeekly.test.cjs` and one for `probarCompuertaIaWeekly` in `FuenteWeekly.test.cjs`; `node --test tests/*.test.cjs` → 86 passing. Four deliberate breakages of the gate were each caught by a test.
+- Fixed a test that depended on the real clock: `analizarWeeklyAhora` read the system date, so once Monday 2026-10-12 passed, the fixture's last week became the expected one and the "week absent" test failed (it was failing before this change, 77 of 78). The clock is now pinned in the test.
+- Not run: Apps Script, triggers, Vertex AI. `probarCompuertaIaWeekly` has not been run live.
+
+## 2026-10-13 — probarCompuertaIaWeekly in Apps Script (operator-reported)
+
+Operator-reported, not produced by a local test: running `probarCompuertaIaWeekly` on the live sheet at 15:49 logged `{"puede":true,"semana":"2026-10-05","motivos":[]}`. A local run of the gate on the .xlsx copy downloaded afterwards gave the same result. The blocked case (week not loaded) has not been seen live.

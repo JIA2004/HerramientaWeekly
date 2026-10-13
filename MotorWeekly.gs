@@ -39,14 +39,25 @@ const weeklyMotorConfig_ = Object.freeze({
   // With only a handful of fields one gap is not a load problem.
   camposParaCobertura: 10,
   // How many block leaders make the headline of the weekly overview.
-  maxTopline: 3
+  maxTopline: 3,
+  // How many moves of the regional aggregate the page tells one by one.
+  maxMovidas: 4,
+  // How many KPIs of each section of the sheet a market shows.
+  maxPorSeccion: 4,
+  // Gate of the AI text (weeklyMotorCompuertaIa_). A market with at least this
+  // share of its read KPIs flagged CERO_SOSPECHOSO in the last week is read as
+  // a load that wrote zeros, and the AI text is not generated that week.
+  // Unvalidated proposal: a normal week has one or two such findings in total.
+  iaCeroPorMercado: 0.25,
+  // How many such markets the gate tolerates before it blocks.
+  iaMercadosConCeroMax: 0
 });
 
 function analizarWeekly(entrada) {
   const cfg = Object.assign({}, weeklyMotorConfig_, entrada.opciones || {});
   const semanas = entrada.semanas.slice().sort();
   const n = semanas.length;
-  const ctx = { cfg, semanas, datos: entrada.datos, cache: {}, porId: {} };
+  const ctx = { cfg, semanas, datos: entrada.datos, cache: {}, porId: {}, sinOperacion: {} };
   const kpis = entrada.catalogo.kpis;
   kpis.forEach(kpi => { ctx.porId[kpi.id] = kpi; });
   const analizables = kpis.filter(kpi => kpi.def && !kpi.duplicadoDe);
@@ -67,7 +78,10 @@ function analizarWeekly(entrada) {
       analizables.forEach(kpi => {
         const serie = weeklyMotorSerie_(ctx, entidad.nombre, kpi.id, 0);
         const revision = weeklyMotorRevisa_(ctx, entidad, kpi, revisiones, 0);
-        if (revision.noOpera) noOpera.push({ entidad: entidad.nombre, kpi: weeklyMotorKpiRef_(kpi) });
+        if (revision.noOpera) {
+          noOpera.push({ entidad: entidad.nombre, kpi: weeklyMotorKpiRef_(kpi) });
+          (ctx.sinOperacion[entidad.nombre] = ctx.sinOperacion[entidad.nombre] || {})[kpi.id] = true;
+        }
         revision.hallazgos.forEach(hallazgo => calidad.push(hallazgo));
         if (revision.noOpera || revision.bloquea) return;
         const movimiento = weeklyMotorMovimiento_(ctx, kpi, serie);
@@ -107,6 +121,57 @@ function analizarWeekly(entrada) {
       'Un KPI con un hallazgo de calidad que bloquea la interpretación no genera alerta de performance.'
     ]
   };
+}
+
+// Decides whether the AI text may be written for a run. The text is generated
+// only over a complete load the engine could interpret; in every other case the
+// page keeps the rule-based summary. Pure: it reads the result of analizarWeekly
+// and nothing else. Returns { puede, semana, motivos: [{ codigo, detalle, entidades? }] }.
+//
+// Three families of reasons:
+// - the load: the provisional findings analizarWeekly already raises (update
+//   pending, expected week missing, partial load);
+// - the sheet: fewer than half of the KPI rows could be interpreted (same rule
+//   as weeklyRegistroDegradada_);
+// - zeros written in bulk: markets where many KPIs read 0 after having had
+//   activity. analizarWeekly does not call that provisional, so the load
+//   findings alone would let it through. The share is taken per market over the
+//   KPIs it is read on (analysed ones minus those it does not operate).
+function weeklyMotorCompuertaIa_(resultado) {
+  if (!resultado || !resultado.semana || !resultado.catalogo) {
+    return { puede: false, semana: null,
+      motivos: [{ codigo: 'SIN_RESULTADO', detalle: 'No hay un resultado del motor para esta corrida.' }] };
+  }
+  const cfg = resultado.parametros || weeklyMotorConfig_;
+  const catalogo = resultado.catalogo;
+  const motivos = [];
+  if (!(catalogo.total > 0) || catalogo.analizados < catalogo.total / 2) {
+    motivos.push({ codigo: 'CATALOGO_DEGRADADO',
+      detalle: 'Solo se pudieron interpretar ' + catalogo.analizados + ' de ' + catalogo.total + ' filas de KPIs.' });
+  }
+  (resultado.globales || []).filter(g => g.provisoria).forEach(g => {
+    const motivo = { codigo: g.regla, detalle: g.detalle };
+    if (g.entidades) motivo.entidades = g.entidades.slice();
+    motivos.push(motivo);
+  });
+  const sinOperacion = {};
+  (resultado.noOpera || []).forEach(x => { sinOperacion[x.entidad] = (sinOperacion[x.entidad] || 0) + 1; });
+  const ceros = {};
+  (resultado.calidad || []).forEach(h => {
+    if (h.regla === 'CERO_SOSPECHOSO') ceros[h.entidad] = (ceros[h.entidad] || 0) + 1;
+  });
+  const enBloque = Object.keys(ceros).map(nombre => {
+    const leidos = catalogo.analizados - (sinOperacion[nombre] || 0);
+    return { nombre, ceros: ceros[nombre], leidos, parte: leidos > 0 ? ceros[nombre] / leidos : 1 };
+  }).filter(m => m.parte >= cfg.iaCeroPorMercado)
+    .sort((a, b) => b.parte - a.parte || a.nombre.localeCompare(b.nombre));
+  if (enBloque.length > cfg.iaMercadosConCeroMax) {
+    motivos.push({ codigo: 'CEROS_EN_BLOQUE', entidades: enBloque.map(m => m.nombre),
+      detalle: 'Muchos KPIs valen 0 en la última semana tras haber tenido actividad: ' +
+        enBloque.map(m => m.nombre + ' (' + m.ceros + ' de ' + m.leidos + ')').join(', ') +
+        '. Puede ser una carga que escribió ceros; hasta revisarlo no se genera el texto.' });
+  }
+  return { puede: motivos.length === 0, semana: resultado.semana, motivos };
 }
 
 // State of the load, before any KPI is read. The sheet is refreshed on Mondays
@@ -209,6 +274,12 @@ function weeklyMotorSerie_(ctx, entidad, id, profundidad) {
       }
       return total;
     });
+  } else if (def.tipo === 'complemento') {
+    // What is left of a whole (100 %) after its other shares. Unlike a sum, a
+    // missing share leaves the remainder unknown.
+    const partes = def.partes.map(otra);
+    serie = ctx.semanas.map((_, i) => (partes.some(parte => parte[i] === null) ? null
+      : partes.reduce((resto, parte) => resto - parte[i], 1)));
   } else {
     serie = vacia;
   }
@@ -459,17 +530,61 @@ function weeklyMotorLideres_(kpis) {
   });
 }
 
+// The strongest moves of one entity taken from both sides: the unfavourable
+// half first, then the favourable one, then whatever else moved the most. The
+// result keeps the order of strength.
+function weeklyMotorAltosYBajos_(ctx, propios, fuertes, maximo) {
+  const lado = id => {
+    const direccion = ctx.porId[id].direccion;
+    return direccion === 1 || direccion === -1 ? Math.sign(propios[id].cambio * direccion) : 0;
+  };
+  const mitad = Math.ceil(maximo / 2);
+  const elegidos = fuertes.filter(id => lado(id) < 0).slice(0, mitad)
+    .concat(fuertes.filter(id => lado(id) > 0).slice(0, maximo - mitad));
+  fuertes.forEach(id => { if (elegidos.length < maximo && elegidos.indexOf(id) === -1) elegidos.push(id); });
+  return fuertes.filter(id => elegidos.indexOf(id) !== -1);
+}
+
+// The KPIs one section of the sheet shows for an entity. Until the sheet says
+// which KPIs matter most, the order is: what moved the most against its own
+// usual variation, with the KPI that opens the section always among the
+// chosen; free places go to the other block leaders and then to the rest by
+// strength of the move. KPIs the market does not operate are left out.
+function weeklyMotorDeSeccion_(ctx, propias, propios, sinOperar, maximo) {
+  const candidatas = propias.filter(kpi => !sinOperar[kpi.id]);
+  const fuerza = kpi => (propios[kpi.id] ? propios[kpi.id].intensidad : -1);
+  const porFuerza = (a, b) => (propios[b.id] ? propios[b.id].alerta : 0) - (propios[a.id] ? propios[a.id].alerta : 0) ||
+    fuerza(b) - fuerza(a) || a.fila - b.fila;
+  const movidos = candidatas.filter(kpi => propios[kpi.id] && propios[kpi.id].cambio !== 0 &&
+    propios[kpi.id].intensidad >= ctx.cfg.zCoMovimiento).sort(porFuerza);
+  const lideres = weeklyMotorLideres_(candidatas);
+  const elegidos = movidos.slice(0, maximo);
+  if (lideres.length && elegidos.indexOf(lideres[0]) === -1) {
+    if (elegidos.length >= maximo) elegidos.pop();
+    elegidos.push(lideres[0]);
+  }
+  lideres.concat(candidatas.slice().sort(porFuerza)).forEach(kpi => {
+    if (elegidos.length < maximo && elegidos.indexOf(kpi) === -1) elegidos.push(kpi);
+  });
+  return { elegidos: elegidos, movidos: movidos.length, total: candidatas.length };
+}
+
 // Weekly overview per entity, alerts or not: the headline KPIs (the first block
-// leaders), the KPIs that moved the most against their own usual variation
-// and, for the regional aggregate, a tour of every section through its block
-// leaders. A leader held back by a quality finding keeps its value and gets no
-// change (cambio null), so it is never read as performance.
+// leaders), the KPIs that moved the most against their own usual variation,
+// the same reading inside every section of the sheet (secciones)
+// and, for the regional aggregate, its high and low performers of the week. A
+// leader held back by a quality finding keeps its value and gets no change
+// (cambio null), so it is never read as performance.
 function weeklyMotorPanorama_(ctx, entrada, analizables, movimientos) {
   const cfg = ctx.cfg;
   const n = ctx.semanas.length;
   const lideres = weeklyMotorLideres_(entrada.catalogo.kpis);
-  const esLider = {};
-  lideres.forEach(kpi => { esLider[kpi.duplicadoDe || kpi.id] = true; });
+  const secciones = [];
+  analizables.forEach(kpi => {
+    let propia = secciones.filter(seccion => seccion.nombre === kpi.seccion)[0];
+    if (!propia) secciones.push(propia = { nombre: kpi.seccion, kpis: [] });
+    propia.kpis.push(kpi);
+  });
   return entrada.entidades.map(entidad => {
     const propios = movimientos[entidad.nombre] || {};
     const ficha = kpi => {
@@ -490,19 +605,13 @@ function weeklyMotorPanorama_(ctx, entrada, analizables, movimientos) {
       .sort((a, b) => (propios[b].alerta - propios[a].alerta) || propios[b].intensidad - propios[a].intensidad);
     const salida = { entidad: entidad.nombre, tipoEntidad: entidad.tipo,
       topline: lideres.slice(0, cfg.maxTopline).map(ficha),
-      destacados: fuertes.slice(0, cfg.maxDestacados).map(id => ficha(ctx.porId[id])) };
+      destacados: fuertes.slice(0, cfg.maxDestacados).map(id => ficha(ctx.porId[id])),
+      secciones: secciones.map(seccion => {
+        const corte = weeklyMotorDeSeccion_(ctx, seccion.kpis, propios, ctx.sinOperacion[entidad.nombre] || {}, cfg.maxPorSeccion);
+        return { nombre: seccion.nombre, movidos: corte.movidos, total: corte.total, kpis: corte.elegidos.map(ficha) };
+      }).filter(seccion => seccion.kpis.length) };
     if (entidad.tipo === 'LATAM') {
-      const secciones = [];
-      lideres.forEach(kpi => {
-        let ultima = secciones[secciones.length - 1];
-        if (!ultima || ultima.seccion !== kpi.seccion) secciones.push(ultima = { seccion: kpi.seccion, lideres: [], otro: null });
-        ultima.lideres.push(ficha(kpi));
-      });
-      secciones.forEach(seccion => {
-        const id = fuertes.filter(otro => ctx.porId[otro].seccion === seccion.seccion && !esLider[otro])[0];
-        if (id) seccion.otro = ficha(ctx.porId[id]);
-      });
-      salida.recorrido = secciones;
+      salida.movidas = weeklyMotorAltosYBajos_(ctx, propios, fuertes, cfg.maxMovidas).map(id => ficha(ctx.porId[id]));
     }
     return salida;
   });
@@ -572,7 +681,7 @@ function weeklyMotorAnioAnterior_(cfg, kpi, serie, movimiento) {
 }
 
 function weeklyMotorKpiRef_(kpi) {
-  return { id: kpi.id, uid: kpi.uid, fila: kpi.fila, etiqueta: kpi.etiqueta, clave: kpi.clave };
+  return { id: kpi.id, uid: kpi.uid, fila: kpi.fila, etiqueta: kpi.etiqueta, nombre: kpi.nombre, clave: kpi.clave };
 }
 
 function weeklyMotorMediana_(lista) {
@@ -587,8 +696,8 @@ function weeklyMotorMediana_(lista) {
 // Builds the KPI catalog from the rows of "2) Weekly por pais" as they are:
 // favourable direction, technical key and visible name come from their
 // columns; the unit comes from the sheet's own WoW formula ((M-L)*100 is
-// percentage points, M/L-1 is relative); derived KPIs come from the value
-// formula of the row. Each entry: { fila, direccion, clave, nombre, bloque,
+// percentage points, M/L-1 is relative); derived KPIs (ratio, product, sum,
+// remainder of 100 %) come from the value formula of the row. Each entry: { fila, direccion, clave, nombre, bloque,
 // formulaValor, formulaVariacion }. bloque is the sheet's own grouping inside a
 // section (Orders, GMV, User Base...), written on the first row of each block.
 
@@ -682,6 +791,7 @@ function weeklyMotorIdentidades_(kpis) {
     else if (def && def.tipo === 'razon') uid = de(def.num) + '/' + de(def.den);
     else if (def && def.tipo === 'producto') uid = de(def.a) + '*' + de(def.b);
     else if (def && def.tipo === 'suma') uid = 'sum(' + def.partes.map(de).join('+') + ')';
+    else if (def && def.tipo === 'complemento') uid = '1-' + def.partes.map(de).join('-');
     else uid = 'fila:' + limpia(kpi.etiqueta);
     memo[kpi.id] = uid;
     return uid;
@@ -716,6 +826,10 @@ function weeklyMotorDefinicion_(formula, fila, clave) {
     for (let k = Number(partes[1]); k <= Number(partes[2]); k++) lista.push('F' + k);
     return { tipo: 'suma', partes: lista };
   }
+  // =100%-F71-F73 (or 1-...): the share left after the other shares.
+  if (/^(100%|1)(\s*-\s*[A-Z]{1,3}\d+)+$/.test(texto)) {
+    return { tipo: 'complemento', partes: texto.match(/[A-Z]{1,3}\d+/g).map(ref => 'F' + /\d+$/.exec(ref)[0]) };
+  }
   return null;
 }
 
@@ -723,5 +837,5 @@ function weeklyMotorUnidad_(formulaVariacion, def) {
   const texto = String(formulaVariacion || '').replace(/\s+/g, '');
   if (/^=?\([A-Z$]+\d+-[A-Z$]+\d+\)\*100$/.test(texto)) return 'pp';
   if (/^=?[A-Z$]+\d+\/[A-Z$]+\d+-1$/.test(texto)) return 'rel';
-  return def && def.tipo === 'razon' ? 'pp' : 'rel';
+  return def && (def.tipo === 'razon' || def.tipo === 'complemento') ? 'pp' : 'rel';
 }

@@ -26,7 +26,7 @@ function respuesta() {
   const resultado = armado.motor.analizarWeekly(armado.entrada);
   const vista = armado.motor.vistaWeekly(resultado);
   armado.motor.weeklyRegistroCompara_(vista, null);
-  return { schemaVersion: 'weekly-vista/2', estado: 'ok', error: null, procedencia: 'lectura', avisos: [],
+  return { schemaVersion: 'weekly-vista/3', estado: 'ok', error: null, procedencia: 'lectura', avisos: [],
     generadoIso: new Date().toISOString(),
     origen: { hojaKpis: '2) Weekly por pais', hojaDatos: 'copia local: ' + path.basename(ruta),
       ultimaActualizacionExtract: armado.fuente.ultimaActualizacion,

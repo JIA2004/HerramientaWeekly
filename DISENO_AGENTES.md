@@ -7,6 +7,14 @@ Fecha: 2026-10-06. Autor: Claude (a pedido de Juani). Estado: **propuesta de dis
 > El lector por selector que este documento menciona (`LectorWeekly.gs`, `Index.txt`, `Web.gs.txt`, etc.) se movió a `anterior/`; el `doGet` vigente está en `Web.gs` y sirve `Resumen`.
 >
 > Actualización del mismo día, después de escribir este documento: se implementaron el control de coincidencia contra la hoja, la página de cuatro capítulos según el diseño de Figma y el carrusel por sección con los KPIs que abren cada bloque de la hoja. Los textos de esa página se arman por reglas. La variante A de este documento (una llamada a un modelo) sería lo que reemplace esos textos por una redacción editorial.
+>
+> Actualización 2026-10-13: se decidió *cómo* se ejecutaría el redactor (sección 10, al final) y se implementó la compuerta de la IA en el motor. Sigue sin haber modelo conectado.
+>
+> Actualización 2026-10-07 (rediseño de la página): quedaron tres capítulos y dos desplegables de datos a revisar; se sacaron el carrusel, "Qué mirar esta semana" y el detalle con filtros. Los textos que Juani quiere que escriba el agente son: en el capítulo 1, `historia.regional.titular`, `.texto` y, por cada tarjeta de `.movidas`, `dato` e `hipotesis`; en el capítulo 2, por país, `texto` e `hipotesis`; en el capítulo 3, `historia.cierre.titular` y los tres `pasos`. Hoy los llena `weeklyResumenHistoria_` por reglas. El agente todavía no está definido ni conectado.
+>
+> Actualización 2026-10-09 (segmentos): en el capítulo 2 el país ya no tiene un único `hipotesis`. Cada país trae `texto`, `nota` y `segmentos[]` ("Todo el país" y uno por sección de la hoja); cada segmento trae su `texto` y hasta cuatro `kpis`, y cada KPI su `dato` y su `hipotesis`. Si un agente escribe esos textos, son muchos más que antes (unos 590 KPIs por semana en la copia de ese día).
+
+> Actualización del 2026-10-07: apareció una segunda línea de IA, distinta de la de este documento. Este diseño es un redactor que escribe el resumen semanal a partir del paquete que arma el motor. La nueva es un **agente de datos en Data Studio que consulta la tabla semanal en BigQuery** para responder preguntas sueltas. Son complementarias y no comparten piezas, salvo una: el diccionario de KPIs. `herramientas/diccionario.cjs` ya genera `salidas/contexto-agente.md` y `.json` (una entrada por columna, las métricas calculadas como fórmula, las reglas de lectura y los nombres que se repiten entre verticales, sin cifras). Ese mismo archivo sirve como glosario del redactor de la variante A. Nada de esto se probó con un agente; 43 de las 100 columnas no tienen definición en `Weekly_Glossary` y ahí el contexto le pide al agente que no suponga. Las condiciones de la sección 6.4 (proveedor aprobado, qué datos pueden salir) valen igual para esa línea, con la diferencia de que un agente dentro de Google Cloud no saca los datos de donde ya están.
 
 Etiquetas de evidencia usadas en todo el documento:
 
@@ -51,7 +59,7 @@ Corrí hoy `node --test tests/*.test.cjs`: **201 tests, 201 pasan** al cierre de
 | Motor | `MotorWeekly.gs` | Funciones puras: catálogo, calidad (10 reglas), performance (z robusto por KPI y mercado sobre 26 semanas, con umbral fijo de respaldo), explicaciones. |
 | Resumen por reglas | `ResumenWeekly.gs` | Texto en español y modelo de vista para la web. |
 | Registro | `RegistroWeekly.gs` | Único archivo que escribe: pestaña `Weekly_Tool_Registro`, una fila por semana, marca nuevo/continúa/resuelto. |
-| Web | `Resumen.txt` | Página de cuatro capítulos (LATAM con carrusel por sección, país por país, qué mirar, resumen) y detalle plegado. |
+| Web | `Resumen.txt` | Página de tres capítulos (LATAM con lo que más se movió, país por país con gráfico elegible, resumen) y desplegables de datos a revisar. |
 | Local | `herramientas/*.cjs` | Corre el motor y la vista previa sobre una copia `.xlsx`. |
 | Código anterior | `LectorWeekly.gs`, `Index.txt`, `PruebaSelector.gs`, `OpcionesWeekly.gs`, `DiagnosticoSheets.gs` | Lector por selector de país. Sigue en el repo. |
 
@@ -548,7 +556,9 @@ Límites configurables del piloto: llamadas máximas por corrida, tokens máximo
 | El modelo inventa o altera una cifra | No escribe cifras; referencias + verificador. |
 | Hipótesis leída como causa | Reglas del prompt, lista de palabras, Revisor, y la persona. Ninguno alcanza solo. |
 | La hoja cambia de estructura otra vez | Ya se detecta (corrida degradada, no se guarda). Falta el `kpi_id` estable. |
-| Analizar una semana a medio cargar | Compuerta de fuente (por construir). |
+| Analizar una semana a medio cargar | Compuerta de fuente: carga provisoria + ceros en bloque (`weeklyMotorCompuertaIa_`, 2026-10-13; probada en local, umbrales sin validar). |
+| Que visitar la web consuma el modelo | El modelo solo se llama desde un disparador semanal; la página lee el texto guardado (sección 10). |
+| Proyecto de Cloud sin dueño tras la pasantía | Decisión pendiente con IT/el equipo (sección 10). |
 | Texto de una celda actuando como instrucción | El paquete solo lleva etiquetas de KPI; caso de prueba 7. |
 | Bucle de revisiones | Máximo 1 reintento; después, resumen por reglas. |
 | Dependencia del proveedor | El paso de modelo es opcional; el piso es el resumen por reglas. |
@@ -563,3 +573,33 @@ Límites configurables del piloto: llamadas máximas por corrida, tokens máximo
 1. **Commit** de todo lo no rastreado y pegar en Apps Script `MotorWeekly.gs`, `FuenteWeekly.gs`, `RegistroWeekly.gs` y `Resumen` para probar el control de coincidencia en vivo.
 2. **Mandar el pedido de permiso** con las cuatro preguntas de 6.4 a quien corresponda (tu líder y, si existe, el equipo de seguridad o datos).
 3. **Etiquetar a mano la semana del 28/09** con alguien del equipo: de las 18 alertas de `salidas/weekly-2026-09-28.md`, cuáles valen la pena y cuáles son ruido, y si la dirección y unidad de esos KPIs están bien. Es el primer caso de evaluación y no depende de ningún permiso.
+
+---
+
+## 10. Ejecución semanal y compuerta (decisión de 2026-10-13)
+
+Estado: **decidido el diseño; implementada solo la compuerta; nada probado en Apps Script, con disparadores ni con Vertex AI.**
+
+**Dónde corre el modelo.** En un disparador por tiempo, nunca desde la página. `obtenerVistaWeekly` y su parámetro `forzar` no llaman al modelo. La web lee el texto guardado y, si no existe, muestra el resumen por reglas. Así quien abre la página no consume nada. El disparador corre con la cuenta que lo crea, y el gasto va al proyecto de Cloud de esa cuenta.
+
+**Por qué no al detectar cambios en la hoja.** `onEdit` no se dispara con cambios por fórmula o por refresco de la extracción, y `onChange` no es confiable para eso. Se prefiere un disparador por tiempo (por ejemplo cada pocas horas el martes) que consulta la compuerta y, si no puede, vuelve a intentar en la siguiente corrida.
+
+**Compuerta (`weeklyMotorCompuertaIa_`, en `MotorWeekly.gs`).** Función pura sobre el resultado del motor. Devuelve `{ puede, semana, motivos[] }` y bloquea por:
+
+- `SIN_RESULTADO`: no hay resultado del motor.
+- `CATALOGO_DEGRADADO`: se interpretaron menos de la mitad de las filas de KPIs.
+- Cualquier hallazgo de carga provisoria: `ACTUALIZACION_PENDIENTE`, `SEMANA_ESPERADA_AUSENTE`, `CARGA_PARCIAL`.
+- `CEROS_EN_BLOQUE`: más de `iaMercadosConCeroMax` (0) mercados con al menos `iaCeroPorMercado` (25 %) de sus KPIs leídos marcados `CERO_SOSPECHOSO`.
+
+Qué sabemos y qué no:
+
+- [V] La fecha de "última actualización" de la extracción no sirve como señal de que la semana esté cargada (se vio una actualizada sin la semana nueva).
+- [V] En la copia del 2026-10-13 la columna de la semana nueva muestra 0 y `#DIV/0!` porque las fórmulas son `IFERROR(SUMIFS(...))` sobre una extracción sin filas de esa semana; el motor lee la extracción, no esos valores.
+- [S] No sé cómo escribe la carga real una semana no cargada (ceros o vacío). Si fueran ceros en pocos KPIs por país, la compuerta los deja pasar a propósito (el caso de 5 KPIs en cero en un país).
+- [P] Los umbrales son una propuesta; calibrarlos con varias semanas reales.
+
+**Prueba en vivo:** `probarCompuertaIaWeekly()` en `FuenteWeekly.gs` (pegar `MotorWeekly.gs` y `FuenteWeekly.gs` juntos) lee la hoja sin escribir, registra la compuerta en el log y no llama a ningún modelo.
+
+**Falta por construir:** el disparador, la llamada a Vertex AI (servicio avanzado `VertexAI` o `UrlFetchApp` con el token de OAuth), el verificador de cifras (5.3), el guardado del texto con su semana, y mostrarlo en `Resumen`. Subir `weeklyResumenFormato_` si cambia la forma del payload.
+
+**Decisiones abiertas (no son técnicas):** aprobación de IT/legal para un proyecto de Cloud con facturación y Vertex AI y para que los datos salgan a ese servicio; quién es dueño del proyecto y del disparador al terminar la pasantía; si quienes abren la web tienen permiso de edición en la hoja (el registro escribe en `Weekly_Tool_Registro` en modo "usuario que accede").

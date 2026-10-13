@@ -202,10 +202,27 @@ test('next week: new, continuing and gone findings are told apart using the save
   assert.equal(respuesta.vista.movimientos.find(m => m.entidad === 'Argentina' && m.fila === 11).historial, 'continua');
   const falta = respuesta.vista.calidad.find(c => c.entidad === 'Chile' && c.fila === 11);
   assert.equal(falta.historial, 'nueva');
-  assert.deepEqual(JSON.parse(JSON.stringify(respuesta.vista.resueltos)),
-    [{ entidad: 'Chile', kpi: 'Overall › Orders', fila: 9, titulo: 'Falta el dato de la última semana' }]);
+  const pasada = respuesta.vista.revisar.anterior;
+  assert.equal(pasada.semana, iso(LUNES(39)));
+  const resuelto = pasada.grupos.find(g => g.kpi === 'Overall › Orders');
+  assert.deepEqual(JSON.parse(JSON.stringify(resuelto)), { titulo: 'Falta el dato de la última semana', kpi: 'Overall › Orders',
+    fila: 9, severidad: 'alta', detalle: null, entidades: ['Chile'], marcados: 0 });
+  assert.equal(respuesta.vista.revisar.actual.find(g => g.fila === 11 && g.entidades.includes('Chile')).marcados, 1, 'new this week');
   assert.equal(semana2.estado.registro.length, 3);
   assert.equal(semana2.estado.registro[2][0], iso(LUNES(40)));
+});
+
+test('a run saved with another payload shape is read again instead of served', () => {
+  const { ctx, estado } = mundo({ [KPIS]: hojaKpis(), [DATOS]: hojaDatos(40) }, hoyPara(40));
+  ctx.obtenerVistaWeekly(false);
+  const texto = estado.registro[1].slice(9).map(celda => celda.slice(1)).join('').replace('"formato":4', '"formato":2');
+  assert.match(texto, /"formato":2/);
+  for (let i = 0; i < 20; i++) estado.registro[1][9 + i] = texto.slice(i * 45000, (i + 1) * 45000) ? '~' + texto.slice(i * 45000, (i + 1) * 45000) : '';
+  const lecturas = estado.lecturasFuente;
+  const respuesta = ctx.obtenerVistaWeekly(false);
+  assert.equal(respuesta.procedencia, 'lectura');
+  assert.ok(estado.lecturasFuente > lecturas);
+  assert.equal(respuesta.vista.formato, 4);
 });
 
 test('failures: unreadable source falls back to the saved run; a busy lock still returns the result', () => {
@@ -307,7 +324,7 @@ test('history: a finding is recognised by KPI uid, not by row or visible name', 
   const actual = ctx.weeklyRegistroCompara_(vista('orders'), claves);
   assert.equal(actual.movimientos[0].historial, 'continua', 'renamed and moved, still the same KPI');
   assert.equal(actual.calidad[0].historial, 'continua');
-  assert.equal(actual.resueltos.length, 0);
+  assert.equal(actual.revisar.anterior.grupos[0].marcados, 1, 'still open under its new name');
   const viejas = { movimientos: [{ k: 'Chile|Overall › Orders', sentido: 'baja' }], calidad: [] };
   const sinHistoria = ctx.weeklyRegistroCompara_(vista('orders'), viejas);
   assert.equal(sinHistoria.conHistorial, false, 'a run saved with name-based keys is not compared');

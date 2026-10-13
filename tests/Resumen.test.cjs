@@ -72,8 +72,8 @@ test('page: every id the script uses exists once in the markup', () => {
   }
 });
 
-test('page: accepts only an ok weekly-vista/2 answer and keeps the previous result on failure', () => {
-  assert.match(script, /respuesta\.schemaVersion === 'weekly-vista\/2' && respuesta\.estado === 'ok' && respuesta\.vista/);
+test('page: accepts only an ok weekly-vista/3 answer and keeps the previous result on failure', () => {
+  assert.match(script, /respuesta\.schemaVersion === 'weekly-vista\/3' && respuesta\.estado === 'ok' && respuesta\.vista/);
   assert.match(script, /resultado anterior/);
   assert.match(pagina, /no demuestran la causa/);
 });
@@ -133,28 +133,33 @@ test('obtenerVistaWeekly: a failed read returns the error and no view', () => {
   const m = motor({ SpreadsheetApp: { openById: () => { throw new Error('boom'); } },
     Utilities: { formatDate: () => '2026-10-06' } });
   const respuesta = m.obtenerVistaWeekly();
-  assert.equal(respuesta.schemaVersion, 'weekly-vista/2');
+  assert.equal(respuesta.schemaVersion, 'weekly-vista/3');
   assert.equal(respuesta.estado, 'error');
   assert.equal(respuesta.error.codigo, 'FUENTE_ERROR_DE_SERVICIO');
   assert.equal(respuesta.vista, null);
 });
 
-test('weekly story: region, one card per country, lists and closing come from computed values', () => {
+test('weekly story: region, one card per country and closing come from computed values', () => {
   const { m, analisis, ultima } = resultado();
   assert.equal(analisis.panorama.length, 3);
   const historia = m.vistaWeekly(analisis).historia;
   assert.equal(historia.regional.nombre, 'LATAM');
-  assert.match(historia.regional.titular, /^LATAM (creció en|cayó en|mantuvo sus) órdenes/);
-  assert.equal(historia.regional.topline[0].nombre, 'Órdenes');
+  assert.match(historia.regional.titular, /^LATAM (creció en|cayó en|mantuvo) Orders/);
+  assert.equal(historia.regional.topline[0].nombre, 'Orders', 'the name of the sheet, never a translation');
   assert.deepEqual(historia.paises.map(p => p.nombre), ['Argentina', 'Chile'], 'LATAM is never listed as a country');
   assert.equal(historia.paisInicial, 'Argentina');
   const argentina = historia.paises[0];
-  assert.equal(argentina.grafico.nombre, 'Fail Rate');
-  assert.equal(argentina.grafico.serie.length, 9);
-  assert.equal(argentina.grafico.serie[8].semana, ultima);
-  assert.equal(argentina.grafico.semanasPromedio, 8);
-  assert.equal(argentina.tarjetas[0].nombre, 'Órdenes');
-  assert.match(argentina.texto, /^Órdenes [+−]?\d/);
+  const general = argentina.segmentos[0];
+  assert.equal(general.general, true);
+  assert.deepEqual(Array.from(general.kpis.map(k => k.nombre)), ['Fail Rate', 'Orders'], 'the strongest move opens, then orders');
+  assert.equal(historia.semanasGrafico.length, 9);
+  assert.equal(historia.semanasGrafico[8], ultima);
+  assert.ok(general.kpis.every(k => k.grafico.valores.length === 9 && k.grafico.textos.length === 9),
+    'every KPI of the market can be charted');
+  assert.equal(general.kpis[0].grafico.semanasPromedio, 8);
+  assert.equal(general.kpis[0].favorable, false);
+  assert.match(general.kpis[0].cambio, /^\+\d,\d\d pp$/);
+  assert.match(argentina.texto, /^Orders [+−]?\d/);
   assert.equal(historia.totalPerformance, analisis.performance.length);
   assert.equal(historia.cierre.pasos.length, 3);
   assert.ok(Array.isArray(historia.cierre.pasos[2].lista));
@@ -165,40 +170,58 @@ test('weekly story: a headline KPI held back by a data finding keeps its value a
   const { m, analisis } = resultado();
   const historia = m.vistaWeekly(analisis).historia;
   const chile = historia.paises.find(p => p.nombre === 'Chile');
-  assert.equal(chile.tarjetas.length + (chile.grafico ? 1 : 0) >= 1, true);
-  assert.match(chile.texto, /no se pueden comparar: el dato está a revisar/);
+  const primero = chile.segmentos[0].kpis[0];
+  assert.equal(primero.nombre, 'Orders');
+  assert.equal(primero.cambio, null, 'a KPI held back has a chart and no change');
+  assert.equal(primero.grafico.valores[8], null);
+  assert.equal(primero.grafico.textos[8], 'sin dato');
+  assert.match(primero.dato, /no se puede comparar/);
+  assert.equal(primero.hipotesis, null, 'nothing is explained without a comparison');
+  assert.match(chile.texto, /^Orders no se puede comparar esta semana: el dato está a revisar/);
   assert.equal(chile.calidadAltas, 1);
-  assert.match(chile.hipotesis, /Hay 1 dato\(s\) de Chile a revisar/);
+  assert.match(chile.nota, /Hay 1 dato\(s\) de Chile a revisar/);
   const ordenes = analisis.panorama.find(e => e.entidad === 'Chile').topline[0];
   assert.equal(ordenes.valor, null);
   assert.equal(ordenes.cambio, null);
 });
 
-test('page: the four chapters of the weekly story are in the markup', () => {
-  for (const texto of ['Capítulo 1 · LATAM', 'Capítulo 2 · País por país', 'Capítulo 3 · Para tener en cuenta',
-    'Capítulo 4 · Resumen semanal LATAM', 'Posible causa · hipótesis a validar']) {
+test('page: the three chapters of the weekly story and the data lists are in the markup', () => {
+  for (const texto of ['Capítulo 1 · LATAM', 'Capítulo 2 · País por país', 'Capítulo 3 · Resumen semanal LATAM',
+    'Lo que más se movió', 'Posible causa · hipótesis a validar', 'Datos a revisar esta semana', 'Datos a revisar semana pasada']) {
     assert.ok(pagina.includes(texto), texto);
   }
+  assert.doesNotMatch(pagina, /Capítulo 4/);
 });
 
-test('weekly story: the regional tour shows each section through its block leaders', () => {
+test('weekly story: the region is told through its high and low performers', () => {
   const { m, analisis } = resultado();
   const region = analisis.panorama.find(e => e.tipoEntidad === 'LATAM');
-  assert.ok(analisis.panorama.filter(e => e.tipoEntidad !== 'LATAM').every(e => e.recorrido === undefined));
-  assert.deepEqual(Array.from(region.recorrido.map(s => s.seccion)), ['Overall']);
-  const recorrido = m.vistaWeekly(analisis).historia.regional.recorrido;
-  assert.equal(recorrido.length, 1);
-  assert.equal(recorrido[0].tarjetas.length, 1, 'no block column: one leader per section');
-  assert.equal(recorrido[0].tarjetas[0].nombre, 'Órdenes');
-  assert.equal(recorrido[0].tarjetas[0].estado, 'habitual');
-  assert.equal(recorrido[0].tarjetas[0].hipotesis, null);
-  assert.match(recorrido[0].texto, /El KPI principal se movió dentro de lo habitual. Fuera de los principales, lo que más se movió en la sección: Overall › Fail Rate/);
+  assert.ok(analisis.panorama.filter(e => e.tipoEntidad !== 'LATAM').every(e => e.movidas === undefined));
+  assert.equal(region.recorrido, undefined);
+  const movidas = m.vistaWeekly(analisis).historia.regional.movidas;
+  assert.equal(movidas.length, 1, 'only what moved beyond its usual variation');
+  assert.equal(movidas[0].nombre, 'Fail Rate');
+  assert.equal(movidas[0].favorable, false);
+  assert.match(movidas[0].dato, /^Pasó de .+ a 4,00 %: .+× su variación típica\./);
+  assert.equal(typeof movidas[0].hipotesis, 'string');
 });
 
-test('page: the tour is a carousel moved by the reader, never by a timer', () => {
-  assert.match(pagina, /id="lamina-anterior"/);
-  assert.match(pagina, /id="lamina-siguiente"/);
+test('high and low performers: both sides are taken, in order of strength', () => {
+  const m = motor();
+  const ctx = { porId: { a: { direccion: 1 }, b: { direccion: 1 }, c: { direccion: -1 }, d: { direccion: 1 }, e: { direccion: null }, f: { direccion: 1 } } };
+  const propios = { a: { cambio: -1 }, b: { cambio: -1 }, c: { cambio: 1 }, d: { cambio: -1 }, e: { cambio: 1 }, f: { cambio: 1 } };
+  const fuertes = ['a', 'b', 'c', 'd', 'e', 'f'];
+  assert.deepEqual(Array.from(m.weeklyMotorAltosYBajos_(ctx, propios, fuertes, 4)), ['a', 'b', 'c', 'f'],
+    'two unfavourable, then the only favourable one and the next strongest');
+  assert.deepEqual(Array.from(m.weeklyMotorAltosYBajos_(ctx, propios, ['f', 'e'], 4)), ['f', 'e']);
+  assert.deepEqual(Array.from(m.weeklyMotorAltosYBajos_(ctx, propios, [], 4)), []);
+});
+
+test('page: nothing moves by itself, the reader picks the KPI of the chart', () => {
   assert.doesNotMatch(script, /setInterval|setTimeout/);
+  assert.match(script, /estado\.orden\[0\] = indice;/);
+  assert.match(script, /estado\.segmento = s\.nombre;/);
+  assert.doesNotMatch(pagina, /carrusel|lamina/);
 });
 
 test('web entry point: the only doGet serves the story page', () => {
@@ -229,16 +252,81 @@ test('apps script project: no global name is declared in two files', () => {
   assert.ok(Object.keys(vistos).length > 40);
 });
 
-test('story page: the short performance list is tagged new or continuing like the full list', () => {
+test('data to review: this week and the saved previous week, each telling what is still open', () => {
   const { m, analisis } = resultado();
   const vista = m.vistaWeekly(analisis);
-  assert.ok(vista.historia.performance.length > 0);
-  assert.ok(vista.historia.performance.every(p => typeof p.uid === 'string' && p.historial === null));
-  const claves = m.weeklyRegistroClavesDe_(vista);
-  m.weeklyRegistroCompara_(vista, claves);
-  assert.ok(vista.historia.performance.every(p => p.historial === 'continua'));
-  m.weeklyRegistroCompara_(vista, { version: 2, movimientos: [], calidad: [] });
-  assert.ok(vista.historia.performance.every(p => p.historial === 'nueva'));
+  assert.equal(vista.formato, 4);
   m.weeklyRegistroCompara_(vista, null);
-  assert.ok(vista.historia.performance.every(p => p.historial === null));
+  assert.equal(vista.revisar.anterior, null);
+  const chile = vista.revisar.actual.find(g => g.entidades.includes('Chile') && g.titulo === 'Falta el dato de la última semana');
+  assert.equal(chile.kpi, 'Overall › Orders');
+  assert.equal(chile.severidad, 'alta');
+  assert.equal(chile.marcados, null, 'without a saved previous week nothing is tagged');
+  assert.equal(typeof chile.detalle, 'string');
+  assert.equal(vista.revisar.actual[0].severidad, 'alta', 'high priority first');
+  const claves = m.weeklyRegistroClavesDe_(vista);
+  claves.calidad.push({ k: 'Argentina|orders|CERO_SOSPECHOSO', entidad: 'Argentina', kpi: 'Overall › Orders', fila: 9,
+    titulo: 'Cero sospechoso', severidad: 'alta' });
+  m.weeklyRegistroCompara_(vista, claves);
+  assert.equal(vista.revisar.actual.find(g => g.kpi === 'Overall › Orders').marcados, 0, 'known since the previous week');
+  assert.equal(vista.revisar.anterior.semana, vista.semanaAnterior);
+  const cero = vista.revisar.anterior.grupos.find(g => g.titulo === 'Cero sospechoso');
+  assert.deepEqual(Array.from(cero.entidades), ['Argentina']);
+  assert.equal(cero.marcados, 0, 'gone this week');
+  assert.equal(vista.revisar.anterior.grupos.find(g => g.titulo === 'Falta el dato de la última semana').marcados, 1, 'still open');
+  assert.doesNotMatch(JSON.stringify(vista.revisar), /undefined|NaN/);
+});
+
+test('segments: every market carries the sections of the sheet with what moved the most first', () => {
+  const { m, analisis } = resultado();
+  const historia = m.vistaWeekly(analisis).historia;
+  const argentina = historia.paises.find(p => p.nombre === 'Argentina');
+  assert.deepEqual(Array.from(argentina.segmentos.map(s => s.nombre)), ['Todo el país', 'Overall'], 'sections keep the name of the sheet');
+  const overall = argentina.segmentos[1];
+  assert.equal(overall.movidos, 1);
+  assert.equal(overall.total, 3);
+  assert.match(overall.texto, /^1 de 3 KPIs de Overall se movió por encima de su variación habitual/);
+  assert.deepEqual(Array.from(overall.kpis.map(k => k.nombre)), ['Fail Rate', 'Orders', 'Dmarts'], 'the move first, then the KPI that opens the section');
+  assert.match(overall.kpis[0].dato, /^Pasó de .+ a 5,00 %: .+× su variación típica\./);
+  assert.equal(typeof overall.kpis[0].hipotesis, 'string');
+  const quieto = overall.kpis.find(k => k.nombre === 'Orders');
+  assert.match(quieto.dato, /Está dentro de lo habitual\.$/);
+  assert.equal(quieto.hipotesis, null, 'a move inside the usual range is not given company');
+  const chile = historia.paises.find(p => p.nombre === 'Chile').segmentos[1];
+  assert.equal(chile.total, 2, 'a KPI the market does not operate is not counted');
+  assert.ok(chile.kpis.every(k => k.nombre !== 'Dmarts'));
+  assert.match(chile.texto, /^Ningún KPI de Overall se movió/);
+  assert.doesNotMatch(JSON.stringify(historia), /Órdenes|GMV confirmado|Clientes activos/);
+});
+
+test('segments: the KPI that opens the section keeps a place when more KPIs moved than fit', () => {
+  const m = motor();
+  const kpi = (fila, bloque) => ({ id: 'F' + fila, fila: fila, seccion: 'Users', bloque: bloque, def: { tipo: 'campo' } });
+  const propias = [kpi(1, 'A'), kpi(2, 'A'), kpi(3, 'A'), kpi(4, 'B'), kpi(5, 'B'), kpi(6, 'B')];
+  const mov = (intensidad, alerta) => ({ intensidad: intensidad, alerta: !!alerta, cambio: 0.1 });
+  const propios = { F1: mov(0.5), F2: mov(9, true), F3: mov(4), F4: mov(3), F5: mov(7, true), F6: mov(2.5) };
+  const ctx = { cfg: { zCoMovimiento: 2 } };
+  const corte = m.weeklyMotorDeSeccion_(ctx, propias, propios, {}, 4);
+  assert.deepEqual(Array.from(corte.elegidos.map(k => k.id)), ['F2', 'F5', 'F3', 'F1']);
+  assert.equal(corte.movidos, 5);
+  assert.equal(corte.total, 6);
+  const sinMovimiento = m.weeklyMotorDeSeccion_(ctx, propias, {}, { F1: true }, 3);
+  assert.deepEqual(Array.from(sinMovimiento.elegidos.map(k => k.id)), ['F2', 'F4', 'F3'], 'block leaders, then sheet order');
+  assert.equal(sinMovimiento.movidos, 0);
+  assert.equal(sinMovimiento.total, 5);
+});
+
+test('KPI names: the name of the row in the sheet, with its group when it has one', () => {
+  const m = motor();
+  assert.equal(m.weeklyResumenCorto_({ etiqueta: 'Overall › Orders', nombre: 'Orders - Total', clave: 'orders' }), 'Orders - Total');
+  assert.equal(m.weeklyResumenCorto_({ etiqueta: 'Overall › Order Share › Food', nombre: 'Food', clave: '' }), 'Order Share › Food');
+  assert.equal(m.weeklyResumenCorto_({ etiqueta: 'Users › Active Customers', nombre: 'Active Customers', clave: 'active_customers' }), 'Active Customers');
+});
+
+test('page: the segments of the sheet are buttons inside the market', () => {
+  for (const nombre of ['segmentos', 'segmento-texto', 'kpi-elegido', 'kpi-dato', 'kpi-hipotesis', 'pais-nota']) {
+    assert.ok(pagina.includes('id="' + nombre + '"'), nombre);
+  }
+  assert.match(script, /pais\.segmentos\.forEach/);
+  assert.doesNotMatch(script, /pais\.kpis|pais\.hipotesis|grafico\.serie/);
 });

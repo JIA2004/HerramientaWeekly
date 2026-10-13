@@ -177,6 +177,10 @@ const weeklyResumenReglas_ = Object.freeze({
   ENTIDAD_SIN_DATOS: 'Mercado sin datos'
 });
 
+// Shape of the page payload. A run saved with another shape is read again
+// instead of being served to a page that no longer understands it.
+const weeklyResumenFormato_ = 4;
+
 function vistaWeekly(resultado) {
   const serie = (evidencia, unidad) => evidencia.map(punto => ({ semana: punto.semana,
     valor: typeof punto.valor === 'number' ? punto.valor : null,
@@ -212,6 +216,7 @@ function vistaWeekly(resultado) {
   resultado.noOpera.forEach(x => { (sinOperacion[x.entidad] = sinOperacion[x.entidad] || []).push(x.kpi.etiqueta); });
   const p = resultado.parametros;
   return {
+    formato: weeklyResumenFormato_,
     semana: resultado.semana, semanaAnterior: resultado.semanaAnterior,
     semanasDisponibles: resultado.semanasDisponibles,
     conteos: { movimientos: movimientos.length,
@@ -237,21 +242,18 @@ function vistaWeekly(resultado) {
 
 // ---- Weekly story ---------------------------------------------------------------
 //
-// weeklyResumenHistoria_() arranges the same analysis as the four chapters of
-// the weekly page: the region, one market at a time, what to look at and the
-// closing summary. Every sentence is assembled by rule from computed values;
+// weeklyResumenHistoria_() arranges the same analysis as the three chapters of
+// the weekly page: the region, one market at a time and the closing summary. Every sentence is assembled by rule from computed values;
 // nothing here interprets, and what the page labels as a possible cause is
 // only what else moved in the same data.
 
-const weeklyResumenNombres_ = Object.freeze({ orders: 'Órdenes', gmv_overall: 'GMV confirmado', active_customers: 'Clientes activos' });
-
-// Short name of a KPI for a card: Spanish for the headline ones (by technical
-// key), otherwise the row's own name in the sheet.
+// Name of a KPI for a card: the row's own name in the sheet, never a
+// translation. A row inside a group (Food under Order Share) carries the
+// group, because the same name repeats from one group to the next.
 function weeklyResumenCorto_(kpi) {
-  if (weeklyResumenNombres_[kpi.clave]) return weeklyResumenNombres_[kpi.clave];
   const partes = String(kpi.etiqueta).split(' › ');
-  if (partes.length === 2 && partes[1] === 'Confirmed GMV') return weeklyResumenNombres_.gmv_overall;
-  return partes.slice(partes.length > 2 ? -2 : -1).join(' › ');
+  const nombre = kpi.nombre || partes[partes.length - 1];
+  return partes.length > 2 ? partes[partes.length - 2] + ' › ' + nombre : nombre;
 }
 
 // Large counts in millions or thousands so a card reads at a glance.
@@ -277,23 +279,37 @@ function weeklyResumenTarjeta_(item) {
     favorable: item.favorable };
 }
 
+// What the page needs to chart one KPI. Kept small on purpose, since every
+// market carries a few KPIs per section: the weeks are the same for all and
+// travel once (historia.semanasGrafico), and the plotted values keep six
+// significant digits. The texts are the exact values, already formatted.
 function weeklyResumenGrafico_(item) {
-  const puntos = item.evidencia.map(punto => ({ semana: punto.semana,
-    valor: typeof punto.valor === 'number' ? punto.valor : null, texto: weeklyResumenCompacto_(punto.valor, item.unidad) }));
-  const previos = puntos.slice(0, -1).map(punto => punto.valor).filter(valor => valor !== null);
+  const valores = item.evidencia.map(punto => (typeof punto.valor === 'number' ? punto.valor : null));
+  const previos = valores.slice(0, -1).filter(valor => valor !== null);
   const promedio = previos.length ? previos.reduce((suma, valor) => suma + valor, 0) / previos.length : null;
-  return { nombre: weeklyResumenCorto_(item.kpi), contexto: item.kpi.etiqueta.split(' › ')[0], fila: item.kpi.fila,
-    favorable: item.favorable, cambio: item.cambio === null ? null : weeklyResumenCambio_(item.cambio, item.unidad),
-    serie: puntos, promedioPrevio: promedio, semanasPromedio: previos.length,
+  const corto = valor => (valor === null ? null : Number(valor.toPrecision(6)));
+  return { valores: valores.map(corto), textos: valores.map(valor => weeklyResumenCompacto_(valor, item.unidad)),
+    promedioPrevio: corto(promedio), semanasPromedio: previos.length,
     promedioTexto: promedio === null ? null : weeklyResumenCompacto_(promedio, item.unidad) };
+}
+
+// One KPI of a market as the page shows it: the card, its chart, what the data
+// shows and what else moved with it. A KPI without a comparison (held back by
+// a data finding, or with no previous value) says so and explains nothing.
+function weeklyResumenKpi_(item, esRegional) {
+  const propio = item.explicaciones ? weeklyResumenDestacado_(item, esRegional)
+    : Object.assign(weeklyResumenTarjeta_(item), { esAlerta: false, hipotesis: null,
+      dato: 'Esta semana no se puede comparar con la anterior: el dato falta o está a revisar.' });
+  return Object.assign(propio, { grafico: weeklyResumenGrafico_(item) });
 }
 
 // One highlighted move: what the data shows, and what else moved with it.
 function weeklyResumenDestacado_(alerta, esRegional) {
   const tarjeta = weeklyResumenTarjeta_(alerta);
   const alcance = alerta.explicaciones.alcance;
-  let dato = 'Pasó de ' + tarjeta.anterior + ' a ' + tarjeta.valor + ': ' + weeklyResumenMedida_(alerta) + '.';
-  if (alcance.otrosPaisesComparables > 0) {
+  let dato = 'Pasó de ' + tarjeta.anterior + ' a ' + tarjeta.valor + ': ' + weeklyResumenMedida_(alerta) + '.' +
+    (alerta.habitual ? ' Está dentro de lo habitual.' : '');
+  if (alcance.otrosPaisesComparables > 0 && !alerta.habitual) {
     const fuertes = alcance.cambios.slice(0, 2).map(c => c.pais + ' (' + weeklyResumenCambio_(c.cambio, alerta.unidad) + ')');
     dato += alcance.otrosPaisesMismoSentido.length === 0
       ? (esRegional ? ' Ningún país muestra un movimiento comparable.' : ' Ningún otro país muestra un movimiento comparable.')
@@ -303,45 +319,36 @@ function weeklyResumenDestacado_(alerta, esRegional) {
   // Short on purpose: how the KPI is built and the three strongest moves of
   // the same market. The full list stays in the detail of each movement.
   const relacionadas = weeklyResumenExplicaciones_(alerta).filter(texto => /^(Composición|Componentes)/.test(texto));
-  const aLaVez = alerta.explicaciones.movimientosSimultaneos.slice(0, 3);
+  // A move inside the usual range needs no company: only how it is built.
+  const aLaVez = alerta.habitual ? [] : alerta.explicaciones.movimientosSimultaneos.slice(0, 3);
   if (aLaVez.length) {
     relacionadas.push('A la vez se movieron: ' + aLaVez.map(m => m.kpi.etiqueta + ' ' +
       weeklyResumenCambio_(m.cambio, m.unidad)).join('; ') + '. Es una coincidencia a revisar, no una causa demostrada.');
   }
   return Object.assign(tarjeta, { dato: dato, esAlerta: !!alerta.esAlerta,
     hipotesis: relacionadas.length ? relacionadas.join(' ')
-      : 'Los datos disponibles no muestran otro KPI que se haya movido a la vez.' });
+      : alerta.habitual ? null : 'Los datos disponibles no muestran otro KPI que se haya movido a la vez.' });
 }
 
-// One slide of the regional tour: a section of the sheet told through the
-// KPIs that open each of its blocks, plus the strongest move outside them.
-function weeklyResumenLamina_(seccion) {
-  const tarjetas = seccion.lideres.map(item => {
-    if (item.sinComparacion) {
-      return Object.assign(weeklyResumenTarjeta_(item), { bloque: item.bloque, estado: 'sin_comparacion',
-        dato: 'Esta semana no se puede comparar: el dato falta o está a revisar.', hipotesis: null });
-    }
-    const tarjeta = weeklyResumenDestacado_(item, true);
-    tarjeta.bloque = item.bloque;
-    tarjeta.estado = item.habitual ? 'habitual' : 'fuera';
-    if (item.habitual) {
-      tarjeta.dato = 'Pasó de ' + tarjeta.anterior + ' a ' + tarjeta.valor + ': dentro de su variación habitual.';
-      tarjeta.hipotesis = null;
-    }
-    return tarjeta;
+// Data findings grouped for reading: one line per rule and KPI with the
+// markets it affects, high priority first. claveDe names the group of an item;
+// marcaDe is true or false for what the caller wants counted (new this week,
+// still open...) or null when there is nothing to compare against.
+function weeklyResumenRevisar_(items, claveDe, marcaDe) {
+  const orden = { alta: 0, media: 1, baja: 2 };
+  const grupos = {};
+  items.forEach(item => {
+    const clave = claveDe(item);
+    const grupo = grupos[clave] = grupos[clave] || { titulo: item.titulo, kpi: item.kpi, fila: item.fila,
+      severidad: item.severidad, detalle: item.detalle || null, entidades: [], marcados: null };
+    grupo.entidades.push(item.entidad);
+    if (orden[item.severidad] < orden[grupo.severidad]) grupo.severidad = item.severidad;
+    const marca = marcaDe(item);
+    if (marca !== null) grupo.marcados = (grupo.marcados || 0) + (marca ? 1 : 0);
   });
-  const fuera = tarjetas.filter(tarjeta => tarjeta.estado === 'fuera');
-  let texto = fuera.length
-    ? fuera.length + ' de ' + tarjetas.length + ' KPIs principales se salieron de lo habitual: ' +
-      fuera.map(tarjeta => tarjeta.nombre + ' ' + tarjeta.cambio).join('; ') + '.'
-    : (tarjetas.length === 1 ? 'El KPI principal se movió' : 'Los ' + tarjetas.length + ' KPIs principales se movieron') +
-      ' dentro de lo habitual.';
-  if (seccion.otro) {
-    const otro = weeklyResumenTarjeta_(seccion.otro);
-    texto += ' Fuera de los principales, lo que más se movió en la sección: ' + seccion.otro.kpi.etiqueta + ' ' + otro.cambio +
-      ' (' + otro.anterior + ' → ' + otro.valor + ').';
-  }
-  return { seccion: seccion.seccion, texto: texto, fuera: fuera.length, tarjetas: tarjetas };
+  return Object.keys(grupos).map(clave => grupos[clave])
+    .sort((a, b) => orden[a.severidad] - orden[b.severidad] || b.entidades.length - a.entidades.length || a.fila - b.fila)
+    .map(grupo => Object.assign(grupo, { detalle: grupo.entidades.length === 1 ? grupo.detalle : null }));
 }
 
 function weeklyResumenHistoria_(resultado) {
@@ -356,6 +363,10 @@ function weeklyResumenHistoria_(resultado) {
   const conAlertas = {};
   dePaises.forEach(a => { conAlertas[a.entidad] = (conAlertas[a.entidad] || 0) + 1; });
   const ordenes = entrada => entrada.topline.filter(item => item.kpi.clave === 'orders')[0] || null;
+  // The orders KPI is found by its technical key and named as the sheet names it.
+  const conNombre = panorama.map(ordenes).filter(Boolean)[0];
+  const nombreOrdenes = conNombre ? weeklyResumenCorto_(conNombre.kpi) : 'Orders';
+  const muestra = panorama.length ? panorama[0].topline[0] || ((panorama[0].secciones || [])[0] || { kpis: [] }).kpis[0] : null;
 
   // Region.
   let regional = null;
@@ -364,37 +375,37 @@ function weeklyResumenHistoria_(resultado) {
     const propias = ordenes(region);
     const cambio = propias ? propias.cambio : null;
     clausula = cambio === null ? 'LATAM, semana del ' + resultado.semana
-      : cambio >= 0.01 ? 'LATAM creció en órdenes' : cambio <= -0.01 ? 'LATAM cayó en órdenes' : 'LATAM mantuvo sus órdenes';
+      : cambio >= 0.01 ? 'LATAM creció en ' + nombreOrdenes : cambio <= -0.01 ? 'LATAM cayó en ' + nombreOrdenes
+      : 'LATAM mantuvo ' + nombreOrdenes;
     // Only a clear majority earns a second clause in the headline.
     const sesgo = desfavorables - favorables >= 3 ? ', con más movimientos en contra que a favor'
       : favorables - desfavorables >= 3 ? ', con más movimientos a favor que en contra' : '';
     const cifras = region.topline.filter(item => item.cambio !== null)
       .map(item => weeklyResumenCorto_(item.kpi) + ' ' + weeklyResumenCambio_(item.cambio, item.unidad));
-    const recorrido = (region.recorrido || []).map(weeklyResumenLamina_);
-    const agitadas = recorrido.filter(lamina => lamina.fuera > 0).map(lamina => lamina.seccion);
     const mayor = Object.keys(conAlertas).sort((a, b) => conAlertas[b] - conAlertas[a] || a.localeCompare(b))[0];
     regional = { nombre: region.entidad, titular: clausula + sesgo,
       texto: (cifras.length ? cifras.join(', ') + ' contra la semana anterior. ' : '') +
         (dePaises.length ? dePaises.length + ' movimientos fuera de lo habitual en ' + Object.keys(conAlertas).length + ' de ' +
           paises.length + ' países (' + desfavorables + ' desfavorables, ' + favorables + ' favorables). ' +
-          mayor + ' es el mercado con más movimientos.' : 'Ningún país tuvo movimientos fuera de lo habitual.') +
-        (agitadas.length ? ' En el agregado regional, los KPIs principales se salieron de lo habitual en ' + agitadas.join(', ') + '.' : ''),
-      topline: region.topline.map(weeklyResumenTarjeta_), recorrido: recorrido };
+          mayor + ' es el mercado con más movimientos.' : 'Ningún país tuvo movimientos fuera de lo habitual.'),
+      topline: region.topline.map(weeklyResumenTarjeta_),
+      movidas: (region.movidas || []).map(alerta => weeklyResumenDestacado_(alerta, true)) };
   }
 
   // One market at a time.
   const fichas = paises.map(entrada => {
     const destacados = entrada.destacados.map(a => weeklyResumenDestacado_(a, false));
     const propias = ordenes(entrada);
-    const principal = entrada.destacados[0] || propias || entrada.topline[0] || null;
-    const tarjetas = [];
+    // The KPIs of the whole market the page can chart: the one that moved the
+    // most opens, then orders, the other strong moves and the headline KPIs.
+    const kpis = [];
     const usadas = {};
-    if (principal) usadas[principal.kpi.id] = true;
     const suma = item => {
-      if (!item || usadas[item.kpi.id] || tarjetas.length >= 3) return;
+      if (!item || usadas[item.kpi.id] || kpis.length >= 4) return;
       usadas[item.kpi.id] = true;
-      tarjetas.push(weeklyResumenTarjeta_(item));
+      kpis.push(weeklyResumenKpi_(item, false));
     };
+    suma(entrada.destacados[0]);
     suma(propias);
     entrada.destacados.slice(1).forEach(suma);
     entrada.topline.forEach(suma);
@@ -403,40 +414,37 @@ function weeklyResumenHistoria_(resultado) {
     let texto = cargando
       ? 'La carga de esta semana está incompleta para ' + entrada.entidad + ': faltan datos que las semanas anteriores sí traían. '
       : propias && propias.cambio !== null
-      ? 'Órdenes ' + weeklyResumenCambio_(propias.cambio, propias.unidad) + ' (' + weeklyResumenCompacto_(propias.valorAnterior, propias.unidad) +
+      ? nombreOrdenes + ' ' + weeklyResumenCambio_(propias.cambio, propias.unidad) + ' (' + weeklyResumenCompacto_(propias.valorAnterior, propias.unidad) +
         ' → ' + weeklyResumenCompacto_(propias.valor, propias.unidad) + '). '
-      : 'Las órdenes de esta semana no se pueden comparar: el dato está a revisar. ';
+      : nombreOrdenes + ' no se puede comparar esta semana: el dato está a revisar. ';
     texto += cargando ? 'No se interpreta hasta que la carga termine.' : destacados.length
       ? 'Lo que más se movió: ' + destacados.map(d => d.contexto + ' › ' + d.nombre + ' ' + d.cambio +
         ' (' + d.anterior + ' → ' + d.valor + ')').join('; ') + '.'
       : 'Ningún KPI se movió fuera de lo habitual.';
+    // The whole market first, then one segment per section of the sheet, in
+    // sheet order and with the sheet's own names.
+    const segmentos = [{ nombre: 'Todo el país', general: true,
+      texto: destacados.length ? 'Los KPIs que más se movieron en todo el país, junto a los que abren la hoja.'
+        : 'Ningún KPI se movió fuera de lo habitual; se muestran los que abren la hoja.', kpis: kpis }]
+      .concat((entrada.secciones || []).map(seccion => ({ nombre: seccion.nombre, general: false,
+        movidos: seccion.movidos, total: seccion.total,
+        texto: cargando ? 'La carga de esta semana está incompleta: los KPIs de ' + seccion.nombre + ' no se interpretan.'
+          : seccion.movidos ? seccion.movidos + ' de ' + seccion.total + ' KPIs de ' + seccion.nombre +
+            (seccion.movidos === 1 ? ' se movió' : ' se movieron') + ' por encima de su variación habitual. Primero lo que más se movió.'
+          : 'Ningún KPI de ' + seccion.nombre + ' se movió por encima de su variación habitual; se muestran los que abren cada bloque.',
+        kpis: seccion.kpis.map(item => weeklyResumenKpi_(item, false)) })));
     return { nombre: entrada.entidad, texto: texto,
-      hipotesis: (destacados.length ? destacados[0].hipotesis : '') +
-        (altas ? (destacados.length ? ' ' : '') + 'Hay ' + altas + ' dato(s) de ' + entrada.entidad +
-          ' a revisar con prioridad alta: conviene verificar la carga antes de concluir.' : ''),
-      grafico: principal ? weeklyResumenGrafico_(principal) : null, tarjetas: tarjetas,
+      nota: altas ? 'Hay ' + altas + ' dato(s) de ' + entrada.entidad +
+        ' a revisar con prioridad alta: conviene verificar la carga antes de concluir.' : null,
+      segmentos: segmentos,
       movimientos: alertasDe(entrada.entidad).length, calidadAltas: altas };
   });
   const peso = nombre => alertasDe(nombre).reduce((suma, a) => suma + a.score, 0);
   const inicial = fichas.slice().sort((a, b) => peso(b.nombre) - peso(a.nombre) || a.nombre.localeCompare(b.nombre))[0];
 
-  // What to look at.
-  const listaPerformance = resultado.performance.slice(0, 5).map(a => ({ entidad: a.entidad, esRegional: a.tipoEntidad === 'LATAM',
-    titulo: a.kpi.etiqueta, uid: a.kpi.uid, fila: a.kpi.fila, historial: null,
-    detalle: weeklyResumenValor_(a.valorAnterior, a.unidad) + ' → ' + weeklyResumenValor_(a.valor, a.unidad) + ', ' + weeklyResumenMedida_(a) + '.',
-    cambio: weeklyResumenCambio_(a.cambio, a.unidad), sentido: a.sentido, favorable: a.favorable }));
   const grupos = {};
-  resultado.calidad.filter(h => h.severidad === 'alta').forEach(h => {
-    const clave = h.regla + '|' + h.kpi.id;
-    (grupos[clave] = grupos[clave] || { regla: h.regla, kpi: h.kpi, detalle: h.detalle, entidades: [] }).entidades.push(h.entidad);
-  });
-  const todos = Object.keys(grupos).map(clave => grupos[clave])
-    .sort((a, b) => b.entidades.length - a.entidades.length || a.kpi.fila - b.kpi.fila);
-  const listaCalidad = todos.slice(0, 5).map(g => ({
-    entidad: g.entidades.length === 1 ? g.entidades[0] : g.entidades.length + ' mercados',
-    titulo: g.kpi.etiqueta, fila: g.kpi.fila,
-    detalle: (weeklyResumenReglas_[g.regla] || g.regla) + '. ' +
-      (g.entidades.length === 1 ? g.detalle : g.entidades.slice(0, 6).join(', ') + (g.entidades.length > 6 ? ' y más' : '') + '.') }));
+  resultado.calidad.filter(h => h.severidad === 'alta').forEach(h => { grupos[h.regla + '|' + h.kpi.id] = true; });
+  const abiertos = Object.keys(grupos).length;
 
   // Closing summary.
   const conOrdenes = paises.map(entrada => ({ nombre: entrada.entidad, item: ordenes(entrada) }))
@@ -447,7 +455,7 @@ function weeklyResumenHistoria_(resultado) {
   pasos.push({ titulo: 'Qué pasó', texto: (regional && regional.topline.length
       ? 'LATAM cerró la semana con ' + regional.topline.map(t => t.nombre + ' ' + t.valor +
         (t.cambio ? ' (' + t.cambio + ')' : '')).join(', ') + '. ' : '') +
-    (conOrdenes.length ? suben.length + ' de ' + conOrdenes.length + ' países crecieron en órdenes' +
+    (conOrdenes.length ? suben.length + ' de ' + conOrdenes.length + ' países crecieron en ' + nombreOrdenes +
       (bajan.length ? '; retrocedieron ' + bajan.slice(0, 4).map(par => par.nombre + ' (' +
         weeklyResumenCambio_(par.item.cambio, par.item.unidad) + ')').join(', ') + (bajan.length > 4 ? ' y otros' : '') + '.' : '.') : '') });
   pasos.push({ titulo: 'Qué hay detrás', texto: resultado.performance.length
@@ -456,11 +464,11 @@ function weeklyResumenHistoria_(resultado) {
     : 'Ningún KPI se movió fuera de su variación habitual.' });
   const mirar = resultado.performance.slice(0, 3).map(a => 'Si ' + a.kpi.etiqueta + ' de ' + a.entidad +
     ' vuelve a su rango habitual o sostiene el nuevo nivel.');
-  if (todos.length) mirar.push('Si se corrigen los ' + todos.length + ' datos a revisar con prioridad alta.');
+  if (abiertos) mirar.push('Si se corrigen los ' + abiertos + ' datos a revisar con prioridad alta.');
   pasos.push({ titulo: 'Qué mirar la semana que viene', lista: mirar.length ? mirar : ['Sin puntos abiertos.'] });
 
   return { regional: regional, paises: fichas, paisInicial: inicial ? inicial.nombre : null,
-    performance: listaPerformance, totalPerformance: resultado.performance.length,
-    calidad: listaCalidad, totalCalidad: todos.length,
+    semanasGrafico: muestra ? muestra.evidencia.map(punto => punto.semana) : [],
+    totalPerformance: resultado.performance.length, totalCalidad: abiertos,
     cierre: { titular: 'En resumen: ' + clausula, pasos: pasos } };
 }

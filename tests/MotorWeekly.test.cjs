@@ -316,6 +316,112 @@ test('load state: a market loaded half way is one finding and is not interpreted
   assert.equal(repetidas.provisoria, undefined);
 });
 
+// Zeros written in bulk in two markets: every KPI of Argentina and Bolivia reads 0 in the last week.
+const cerosEnBloque = (datos, semana) => {
+  ['Argentina', 'Bolivia'].forEach(pais => Object.keys(datos[pais]).forEach(campo => { datos[pais][campo][semana] = 0; }));
+};
+
+test('AI gate: a complete, interpretable week passes with no reasons', () => {
+  const { m, resultado } = escenario();
+  const compuerta = m.weeklyMotorCompuertaIa_(resultado);
+  assert.deepEqual(JSON.parse(JSON.stringify(compuerta)), { puede: true, semana: resultado.semana, motivos: [] });
+  assert.equal(resultado.parametros.iaCeroPorMercado, 0.25);
+  assert.equal(resultado.parametros.iaMercadosConCeroMax, 0);
+});
+
+test('AI gate: the load findings that make a run provisional block it, each with its own text', () => {
+  const m = motor();
+  const { entrada, ultima } = escenario();
+  const dia = (base, dias) => new Date(Date.parse(base) + dias * 86400000).toISOString().slice(0, 10);
+  entrada.semanaEsperada = dia(ultima, 7);
+  entrada.ultimaActualizacion = dia(ultima, 11);
+  const pendiente = m.weeklyMotorCompuertaIa_(m.analizarWeekly(entrada));
+  assert.equal(pendiente.puede, false);
+  assert.deepEqual(Array.from(pendiente.motivos.map(x => x.codigo)), ['ACTUALIZACION_PENDIENTE']);
+  assert.match(pendiente.motivos[0].detalle, /Todavía no traen la semana/);
+  entrada.ultimaActualizacion = dia(ultima, 14);
+  assert.deepEqual(Array.from(m.weeklyMotorCompuertaIa_(m.analizarWeekly(entrada)).motivos.map(x => x.codigo)), ['SEMANA_ESPERADA_AUSENTE']);
+  entrada.semanaEsperada = ultima;
+  conCampos(entrada);
+  Object.keys(entrada.datos.Chile).forEach((campo, i) => { if (i % 2) entrada.datos.Chile[campo][ultima] = null; });
+  const parcial = m.weeklyMotorCompuertaIa_(m.analizarWeekly(entrada));
+  assert.equal(parcial.puede, false);
+  assert.deepEqual(Array.from(parcial.motivos.map(x => x.codigo)), ['CARGA_PARCIAL']);
+  assert.deepEqual(Array.from(parcial.motivos[0].entidades), ['Chile']);
+});
+
+test('AI gate: zeros written in bulk block it although the engine alone does not call the load provisional', () => {
+  const { m, resultado } = escenario(cerosEnBloque);
+  assert.equal(resultado.provisoria, false, 'the load findings alone would let this week through');
+  assert.equal(resultado.performance.filter(a => a.entidad === 'Argentina' || a.entidad === 'Bolivia').length, 0,
+    'the engine already refuses to alert on those zeros');
+  const compuerta = m.weeklyMotorCompuertaIa_(resultado);
+  assert.equal(compuerta.puede, false);
+  assert.deepEqual(Array.from(compuerta.motivos.map(x => x.codigo)), ['CEROS_EN_BLOQUE']);
+  assert.deepEqual(Array.from(compuerta.motivos[0].entidades).sort(), ['Argentina', 'Bolivia']);
+  assert.match(compuerta.motivos[0].detalle, /Argentina \(\d+ de \d+\)/);
+  assert.match(compuerta.motivos[0].detalle, /hasta revisarlo no se genera el texto/);
+});
+
+test('AI gate: an isolated zero is tolerated, and both thresholds can be tuned', () => {
+  const aislado = (datos, semana) => { datos.Perú.orders_dmarts[semana] = 0; };
+  const base = escenario(aislado);
+  assert.equal(base.m.weeklyMotorCompuertaIa_(base.resultado).puede, true, 'one of five read KPIs is below the 25% proposal');
+  assert.equal(de(base.resultado.calidad, 'Perú', 'F11')[0].regla, 'CERO_SOSPECHOSO', 'it is still reported as a quality finding');
+  base.entrada.opciones = { iaCeroPorMercado: 0.1 };
+  const estricto = base.m.weeklyMotorCompuertaIa_(base.m.analizarWeekly(base.entrada));
+  assert.equal(estricto.puede, false);
+  assert.deepEqual(Array.from(estricto.motivos[0].entidades), ['Perú']);
+  const dos = escenario(cerosEnBloque);
+  dos.entrada.opciones = { iaMercadosConCeroMax: 2 };
+  assert.equal(dos.m.weeklyMotorCompuertaIa_(dos.m.analizarWeekly(dos.entrada)).puede, true, 'two markets are tolerated when asked');
+  dos.entrada.opciones = { iaMercadosConCeroMax: 1 };
+  assert.equal(dos.m.weeklyMotorCompuertaIa_(dos.m.analizarWeekly(dos.entrada)).puede, false);
+});
+
+test('AI gate: the share of a market is taken over the KPIs it operates, not over the whole catalog', () => {
+  const { m, resultado } = escenario((datos, semana, lista) => {
+    lista.forEach(s => { datos.Chile.orders_dmarts[s] = 0; });
+    datos.Chile.fail_rate[semana] = 0;
+  });
+  assert.ok(resultado.noOpera.some(x => x.entidad === 'Chile' && x.kpi.id === 'F11'));
+  const compuerta = m.weeklyMotorCompuertaIa_(resultado);
+  assert.equal(compuerta.puede, false);
+  assert.match(compuerta.motivos[0].detalle, /Chile \(1 de 4\)/, 'five analysed KPIs minus the one Chile does not operate');
+});
+
+test('AI gate: fewer than half of the KPI rows interpreted blocks it with the same rule as the registry', () => {
+  const contexto = vm.createContext({});
+  ['MotorWeekly.gs', 'ResumenWeekly.gs', 'FuenteWeekly.gs', 'RegistroWeekly.gs'].forEach(nombre => {
+    vm.runInContext(fs.readFileSync(path.join(root, nombre), 'utf8'), contexto, { filename: nombre });
+  });
+  const { resultado } = escenario();
+  const casos = [[10, 4], [10, 5], [10, 6], [0, 0], [1, 0], [2, 1], [7, 3], [7, 4]];
+  casos.forEach(([total, analizados]) => {
+    const r = JSON.parse(JSON.stringify(resultado));
+    r.catalogo = { total, analizados, advertencias: [] };
+    const bloquea = contexto.weeklyMotorCompuertaIa_(r).motivos.some(x => x.codigo === 'CATALOGO_DEGRADADO');
+    const degradada = contexto.weeklyRegistroDegradada_({ conteos: { filasKpi: total, kpisAnalizados: analizados } });
+    assert.equal(bloquea, degradada, `${analizados} of ${total} rows: the gate and the registry must agree`);
+  });
+  const r = JSON.parse(JSON.stringify(resultado));
+  r.catalogo = { total: 10, analizados: 4, advertencias: [] };
+  assert.match(contexto.weeklyMotorCompuertaIa_(r).motivos[0].detalle, /4 de 10 filas/);
+});
+
+test('AI gate: it does not modify the result it reads and refuses an empty one', () => {
+  const { m, resultado } = escenario(cerosEnBloque);
+  const antes = JSON.stringify(resultado);
+  m.weeklyMotorCompuertaIa_(resultado);
+  assert.equal(JSON.stringify(resultado), antes);
+  [null, undefined, {}, { semana: '2026-01-05' }].forEach(vacio => {
+    const compuerta = m.weeklyMotorCompuertaIa_(vacio);
+    assert.equal(compuerta.puede, false);
+    assert.equal(compuerta.semana, null);
+    assert.equal(compuerta.motivos[0].codigo, 'SIN_RESULTADO');
+  });
+});
+
 test('identity: the uid of a KPI survives inserted rows and renamed sections, and is unique', () => {
   const m = motor();
   const antes = m.weeklyMotorCatalogo_(FILAS).kpis;

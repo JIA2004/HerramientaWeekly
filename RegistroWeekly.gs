@@ -26,7 +26,7 @@ const weeklyRegistroConfig_ = Object.freeze({
 function obtenerVistaWeekly(forzar) {
   const fuente = weeklyFuenteConfig_;
   const inicio = new Date();
-  const respuesta = { schemaVersion: 'weekly-vista/2', estado: 'error', error: null, procedencia: null,
+  const respuesta = { schemaVersion: 'weekly-vista/3', estado: 'error', error: null, procedencia: null,
     generadoIso: null, semanaEsperada: null, avisos: [],
     origen: { hojaKpis: fuente.hojaKpis, hojaDatos: fuente.hojaDatos, hojaRegistro: weeklyRegistroConfig_.hoja,
       ultimaActualizacionExtract: null, ultimaActualizacionHora: null, controlHoja: null },
@@ -51,9 +51,9 @@ function obtenerVistaWeekly(forzar) {
     return respuesta;
   };
   // A saved run where most KPI rows could not be interpreted is never served,
-  // nor one saved before the page had its weekly story.
-  if (guardada && guardada.paquete && (weeklyRegistroDegradada_(guardada.paquete.vista) || !guardada.paquete.vista.historia ||
-    guardada.paquete.vista.provisoria)) guardada = null;
+  // nor one saved with a payload the current page does not understand.
+  if (guardada && guardada.paquete && (weeklyRegistroDegradada_(guardada.paquete.vista) ||
+    guardada.paquete.vista.formato !== weeklyResumenFormato_ || guardada.paquete.vista.provisoria)) guardada = null;
   if (!forzar && guardada && guardada.paquete && respuesta.semanaEsperada && guardada.semana >= respuesta.semanaEsperada) {
     return sirveGuardada();
   }
@@ -233,34 +233,33 @@ function weeklyRegistroClavesDe_(vista) {
 }
 
 // Tags every item as 'nueva' or 'continua' against the previous week's saved
-// run and lists the data findings that are gone. Without a previous run, or
-// with one saved under the older keys, there is nothing to compare and
-// nothing is tagged.
+// run and builds the two lists of data to review the page shows: this week's
+// findings and the ones saved for the previous week, each telling whether it
+// is still open. Without a previous run, or with one saved under the older
+// keys, there is nothing to compare and nothing is tagged.
 function weeklyRegistroCompara_(vista, anteriores) {
   if (anteriores && anteriores.version !== 2) anteriores = null;
   vista.conHistorial = !!anteriores;
-  vista.resueltos = [];
-  if (!anteriores) {
-    vista.movimientos.forEach(m => { m.historial = null; });
-    vista.calidad.forEach(c => { c.historial = null; });
-    ((vista.historia && vista.historia.performance) || []).forEach(p => { p.historial = null; });
-    return vista;
-  }
   const de = item => item.entidad + '|' + (item.uid || item.kpi);
+  const grupoDe = item => (item.uid || item.kpi) + '|' + item.regla;
   const movidos = {};
-  anteriores.movimientos.forEach(m => { movidos[m.k] = m.sentido; });
   const observados = {};
-  anteriores.calidad.forEach(c => { observados[c.k] = true; });
-  vista.movimientos.forEach(m => { m.historial = movidos[de(m)] ? 'continua' : 'nueva'; });
-  // The short list of the story page shows the same tag as the full list.
-  ((vista.historia && vista.historia.performance) || []).forEach(p => { p.historial = movidos[de(p)] ? 'continua' : 'nueva'; });
+  if (anteriores) {
+    anteriores.movimientos.forEach(m => { movidos[m.k] = m.sentido; });
+    anteriores.calidad.forEach(c => { observados[c.k] = true; });
+  }
+  vista.movimientos.forEach(m => { m.historial = !anteriores ? null : movidos[de(m)] ? 'continua' : 'nueva'; });
   const actuales = {};
   vista.calidad.forEach(c => {
     const clave = de(c) + '|' + c.regla;
     actuales[clave] = true;
-    c.historial = observados[clave] ? 'continua' : 'nueva';
+    c.historial = !anteriores ? null : observados[clave] ? 'continua' : 'nueva';
   });
-  vista.resueltos = anteriores.calidad.filter(c => !actuales[c.k] && c.severidad !== 'baja')
-    .map(c => ({ entidad: c.entidad, kpi: c.kpi, fila: c.fila, titulo: c.titulo }));
+  vista.revisar = {
+    actual: weeklyResumenRevisar_(vista.calidad, grupoDe, c => (c.historial === null ? null : c.historial === 'nueva')),
+    // A saved key is market|uid|rule: what follows the market names the group.
+    anterior: !anteriores ? null : { semana: vista.semanaAnterior,
+      grupos: weeklyResumenRevisar_(anteriores.calidad, c => c.k.slice(c.entidad.length + 1), c => !!actuales[c.k]) }
+  };
   return vista;
 }

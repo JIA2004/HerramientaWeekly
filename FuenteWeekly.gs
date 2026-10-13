@@ -92,6 +92,17 @@ function probarAnalisisWeekly() {
   return corrida;
 }
 
+// Manual driver to check the gate of the AI text on the sheet as it is right
+// now: it logs whether the text could be generated and why not. It reads like
+// probarAnalisisWeekly and calls no model. A read that fails also blocks.
+function probarCompuertaIaWeekly() {
+  const corrida = analizarWeeklyAhora();
+  const compuerta = corrida.estado === 'ok' ? weeklyMotorCompuertaIa_(corrida.resultado)
+    : { puede: false, semana: null, motivos: [{ codigo: 'LECTURA_FALLIDA', detalle: corrida.error ? corrida.error.codigo : 'sin detalle' }] };
+  console.log(JSON.stringify(compuerta));
+  return compuerta;
+}
+
 // ---- Pure builders ----------------------------------------------------------
 
 function weeklyFuenteEntrada_(valoresKpi, formulasKpi, valoresDatos, aIso, hoyIso, aHora) {

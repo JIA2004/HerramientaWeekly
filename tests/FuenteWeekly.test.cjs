@@ -52,6 +52,21 @@ function contexto(extra) {
   return ctx;
 }
 
+// The run reads the clock to know which week just closed. Pinning it keeps the
+// tests from depending on the day they run: the fixture's last week is
+// 2026-10-05, and from Monday 2026-10-12 on, when that week closed, the tests
+// that assumed an earlier "today" started to fail.
+function relojFijo(instanteIso) {
+  const instante = Date.parse(instanteIso);
+  return class extends Date {
+    constructor(...argumentos) { super(...(argumentos.length ? argumentos : [instante])); }
+    static now() { return instante; }
+  };
+}
+
+const VIERNES_ANTES_DEL_CIERRE = '2026-10-09T15:00:00Z';
+const MARTES_DESPUES_DEL_CIERRE = '2026-10-13T15:00:00Z';
+
 const aIso = ctx => valor => ctx.weeklyFuenteFecha_(valor, iso);
 
 function estricto(metodos) {
@@ -171,7 +186,7 @@ test('analizarWeeklyAhora: read-only run returns the analysis, its text and the 
   const registro = [];
   const hojas = { '2) Weekly por pais': hojaKpis(),
     '[Extract] Tabla Weekly': { valores: hojaDatos(valores => { valores[40][5] = 0.06; }), formulas: [] } };
-  const ctx = contexto(servicios(hojas, registro));
+  const ctx = contexto(Object.assign(servicios(hojas, registro), { Date: relojFijo(VIERNES_ANTES_DEL_CIERRE) }));
   const corrida = ctx.analizarWeeklyAhora();
   assert.equal(corrida.estado, 'ok', JSON.stringify(corrida.error));
   assert.equal(corrida.error, null);
@@ -215,6 +230,29 @@ test('probarAnalisisWeekly: logs a count summary and the text, and returns the r
   assert.equal(corrida.estado, 'ok');
   assert.equal(JSON.parse(logs[0].slice(4)).kpisAnalizados, 3);
   assert.match(logs[1], /# Resumen Weekly/);
+});
+
+test('probarCompuertaIaWeekly: logs the gate, reads without writing and calls no model', () => {
+  const hojas = () => ({ '2) Weekly por pais': hojaKpis(), 'Extract Tabla Weekly': { valores: hojaDatos(), formulas: [] } });
+  const corre = (instante, conjunto) => {
+    const registro = [];
+    const compuerta = contexto(Object.assign(servicios(conjunto, registro), { Date: relojFijo(instante) })).probarCompuertaIaWeekly();
+    return { compuerta: JSON.parse(JSON.stringify(compuerta)), registro };
+  };
+  // The expected week (2026-09-28) is behind the data: the load is not what the page expects.
+  const antes = corre(VIERNES_ANTES_DEL_CIERRE, hojas());
+  assert.equal(antes.compuerta.puede, false);
+  assert.equal(antes.compuerta.motivos[0].codigo, 'SEMANA_ESPERADA_AUSENTE');
+  assert.deepEqual(JSON.parse(antes.registro.filter(paso => paso.startsWith('log:'))[0].slice(4)), antes.compuerta);
+  assert.deepEqual(antes.registro.filter(paso => !paso.startsWith('openById') && !paso.startsWith('log:')),
+    ['getValues', 'getFormulas', 'getValues']);
+  // The week the data carries is the one that just closed.
+  const despues = corre(MARTES_DESPUES_DEL_CIERRE, hojas());
+  assert.deepEqual(despues.compuerta, { puede: true, semana: '2026-10-05', motivos: [] });
+  // A read that fails blocks too, and says only the code of the failure.
+  const sinExtract = corre(MARTES_DESPUES_DEL_CIERRE, { '2) Weekly por pais': hojaKpis() });
+  assert.equal(sinExtract.compuerta.puede, false);
+  assert.deepEqual(sinExtract.compuerta.motivos, [{ codigo: 'LECTURA_FALLIDA', detalle: 'FUENTE_SIN_HOJA' }]);
 });
 
 test('a column inserted between the key and the name does not break key or direction', () => {
