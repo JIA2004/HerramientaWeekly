@@ -75,3 +75,11 @@ Claude cannot reach the live spreadsheet or the Apps Script project: the user do
 - Identifiers and user-facing text are in Spanish; code comments, test names and commit messages are in English. Reply to the user in Spanish.
 - `BITACORA.md` is a chronological log of what was actually executed (and by whom: local test run vs. operator-reported in Apps Script); add entries only after the fact. Keep `README.md` current when behaviour changes. `DISENO_AGENTES.md` is a design for adding an AI model, not implemented.
 - Work is committed directly on `main`.
+
+## Third-party agent skills
+- Installed only: grill-me, diagnosing-bugs, handoff (mattpocock/skills); security-and-hardening, source-driven-development, documentation-and-adrs, observability-and-instrumentation (addyosmani/agent-skills).
+- No skill may publish issues, specs, PRs or any text to GitHub or any external service. The GitHub remote is public.
+- Never include business figures (KPI values, market data, anything from `salidas/` or `presentacion/`) in specs, ADRs, handoff notes or skill output that gets committed. Use synthetic examples.
+- Skills assume CI and automated deploys; this project has neither. Code is pasted by hand into Apps Script. Ignore any skill step that assumes otherwise (ship, ci-cd, deploy).
+- Skill output never changes the "verified vs. not" rule: local tests mean "works on a copy", not "works live".
+- Skills are an aid, not authority: CLAUDE.md and README.md win in any conflict.
