@@ -179,7 +179,7 @@ const weeklyResumenReglas_ = Object.freeze({
 
 // Shape of the page payload. A run saved with another shape is read again
 // instead of being served to a page that no longer understands it.
-const weeklyResumenFormato_ = 5;
+const weeklyResumenFormato_ = 6;
 
 function vistaWeekly(resultado) {
   const serie = (evidencia, unidad) => evidencia.map(punto => ({ semana: punto.semana,
@@ -272,7 +272,7 @@ function weeklyResumenMedida_(alerta) {
 }
 
 function weeklyResumenTarjeta_(item) {
-  return { nombre: weeklyResumenCorto_(item.kpi), contexto: item.kpi.etiqueta.split(' › ')[0], fila: item.kpi.fila,
+  return { nombre: weeklyResumenCorto_(item.kpi), uid: item.kpi.uid, contexto: item.kpi.etiqueta.split(' › ')[0], fila: item.kpi.fila,
     valor: weeklyResumenCompacto_(item.valor, item.unidad), anterior: weeklyResumenCompacto_(item.valorAnterior, item.unidad),
     cambio: item.cambio === null ? null : weeklyResumenCambio_(item.cambio, item.unidad),
     sentido: item.cambio === null || item.cambio === 0 ? 'igual' : item.cambio > 0 ? 'sube' : 'baja',

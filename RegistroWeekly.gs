@@ -48,6 +48,7 @@ function obtenerVistaWeekly(forzar) {
     respuesta.generadoIso = guardada.guardado;
     respuesta.origen.ultimaActualizacionExtract = guardada.ultimaActualizacion;
     respuesta.vista = guardada.paquete.vista;
+    weeklyRegistroSumaTextoIa_(respuesta, documento, zona);
     return respuesta;
   };
   // A saved run where most KPI rows could not be interpreted is never served,
@@ -104,7 +105,22 @@ function obtenerVistaWeekly(forzar) {
     respuesta.avisos.push('El resultado se calculó pero no se pudo guardar en la pestaña ' + weeklyRegistroConfig_.hoja +
       (typeof mensaje === 'string' && /^REGISTRO_[A-Z_]+$/.test(mensaje) ? ' (' + mensaje + ').' : '.'));
   }
+  // After saving: the AI text is added to what the page receives, never to the saved run.
+  weeklyRegistroSumaTextoIa_(respuesta, documento, zona);
   return respuesta;
+}
+
+// Adds the week's AI text (saved by the weekly trigger in its own tab) to the
+// payload of the page. Read-only here: this function never calls the model.
+// Without that tab, or without the IaWeekly.gs file in the project, the page
+// keeps the rule-based text and says nothing.
+function weeklyRegistroSumaTextoIa_(respuesta, documento, zona) {
+  if (typeof weeklyIaLee_ !== 'function' || !documento || !respuesta.vista) return;
+  try {
+    respuesta.textoIa = weeklyIaAplica_(respuesta.vista, weeklyIaLee_(documento, respuesta.vista.semana, zona));
+  } catch (error) {
+    respuesta.avisos.push('No se pudo leer el texto redactado con IA: se muestra el resumen por reglas.');
+  }
 }
 
 // ---- Reading the registry -----------------------------------------------------

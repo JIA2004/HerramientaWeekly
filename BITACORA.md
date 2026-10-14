@@ -185,3 +185,17 @@ Operator-reported, not produced by a local test: running `probarCompuertaIaWeekl
 - Payload: `vista.formato = 5`, so a run saved with format 4 is read again once.
 - Tests: `node --test tests/*.test.cjs` → 86 passing (assertions added to existing tests). Seen in the preview on the 2026-10-09 copy: chart drawn, switching cards changes the KPI, the market chart still works, no console errors.
 - Not run in Apps Script. `ResumenWeekly` and `Resumen` have to be pasted again together.
+
+## 2026-10-14 — AI text with a Gemini API key (local only)
+
+- Added `IaWeekly.gs`: one package per market plus LATAM with references instead of numbers, a verifier (JSON shape, no digit of its own, only known references, no causal wording, no verdict on a KPI without direction), the request and response readers for Gemini `generateContent` (key in the `x-goog-api-key` header), the merge of saved text into the page payload, the weekly runner `generarTextosIaWeekly` with caps (3 attempts per market, 60 calls per week, 4.5 minutes per run), its own tab `Weekly_Tool_Textos_IA`, and the editor helpers `probarClaveIaWeekly`, `probarPaquetesIaWeekly`, `instalarDisparadorIaWeekly`, `quitarDisparadorIaWeekly`.
+- `RegistroWeekly.gs`: `weeklyRegistroSumaTextoIa_` adds the week's AI text after serving or saving; the saved run never carries it. `ResumenWeekly.gs`: cards carry `uid` and `vista.formato` is 6, so a run saved with format 5 is read again once.
+- Tests: `node --test tests/*.test.cjs` → 110 passing (86 before, 24 new in `tests/IaWeekly.test.cjs`, which replace `UrlFetchApp`, `PropertiesService`, `LockService` and the spreadsheet with in-memory stand-ins and answer as the "model"). Six deliberate breakages (digit check off, causal check off, key in the address, failed rows applied, completion mark always written, reference check off) were each caught by a test; the fourth was not caught the first time and the test was tightened.
+- Not run: Apps Script, `UrlFetchApp`, a real Gemini call, the trigger. No API key exists yet. The model name is not set anywhere: it has to be put in the `GEMINI_MODEL` script property.
+
+## 2026-10-14 — "KPIs a mirar" document (local only)
+
+- `Resumen.txt`: at Juani's request the download lives in a new first drop-down, "KPIs a mirar esta semana", which lists every move of the week (strongest first); its "Descargar documento" button builds, in the browser, an HTML document saved as `KPIs-a-mirar-<week>.doc` (opens in Word and Google Docs) from the payload the page already has: closing summary, a table of markets (LATAM first, then by number of moves), every KPI that moved beyond its usual range per market (sheet name, row, change, previous → current, favourable or not, distance from its usual variation, new or continuing, what moved with it), the data to review and the criteria. No new server call, no payload change (`formato` stays 6). Text is HTML-escaped.
+- Tests: `node --test tests/*.test.cjs` → 111 passing (one new test runs `documentoSemana` from the page script on a synthetic view).
+- Seen in the in-app browser on a synthetic payload (no .xlsx copy was on disk): the drop-down lists the four synthetic moves, the button is no longer in the top bar, and it produces an `application/msword` file with LATAM first, every move listed and no `undefined`/`NaN`.
+- Not run: on a real copy, or in Apps Script. Unknown whether the Apps Script sandbox iframe allows the download.

@@ -257,7 +257,7 @@ test('apps script project: no global name is declared in two files', () => {
 test('data to review: this week and the saved previous week, each telling what is still open', () => {
   const { m, analisis } = resultado();
   const vista = m.vistaWeekly(analisis);
-  assert.equal(vista.formato, 5);
+  assert.equal(vista.formato, 6);
   m.weeklyRegistroCompara_(vista, null);
   assert.equal(vista.revisar.anterior, null);
   const chile = vista.revisar.actual.find(g => g.entidades.includes('Chile') && g.titulo === 'Falta el dato de la última semana');
@@ -332,4 +332,31 @@ test('page: the segments of the sheet are buttons inside the market', () => {
   assert.match(script, /pais\.segmentos\.forEach/);
   assert.ok(pagina.includes('id="region-grafico"'), 'the region charts its headline KPIs too');
   assert.doesNotMatch(script, /pais\.kpis|pais\.hipotesis|grafico\.serie/);
+});
+
+test('document of the week: every KPI that moved, by market, with the data to review', () => {
+  const { m, analisis } = resultado();
+  const vista = m.vistaWeekly(analisis);
+  m.weeklyRegistroCompara_(vista, null);
+  const fuente = /\n  (function documentoSemana\([\s\S]*?\n  \})\n/.exec(script)[1];
+  const documentoSemana = vm.runInNewContext('(' + fuente + ')');
+  const doc = documentoSemana(vista, { ultimaActualizacionExtract: '2026-10-05' }, iso => 'Semana del ' + iso);
+  assert.equal(doc.nombre, 'KPIs-a-mirar-' + vista.semana + '.doc');
+  const texto = doc.html;
+  assert.ok(texto.startsWith('\ufeff<!DOCTYPE html>'), 'Word reads the file as UTF-8');
+  for (const mov of vista.movimientos) assert.ok(texto.includes('<td>' + mov.kpi), mov.entidad + ' ' + mov.kpi);
+  assert.ok(texto.indexOf('<h2>LATAM (agregado regional)</h2>') < texto.indexOf('<h2>Argentina</h2>'), 'the region first');
+  assert.match(texto, /Desfavorable/);
+  assert.match(texto, /no demuestran la causa/);
+  assert.match(texto, /<h2>Datos a revisar esta semana<\/h2><table>|<h2>Datos a revisar esta semana<\/h2>\n<table>/);
+  assert.ok(texto.includes('Falta el dato de la última semana'));
+  assert.ok(texto.includes('05/10/2026'));
+  assert.doesNotMatch(texto, /undefined|NaN|\[object/);
+  const conTexto = Object.assign({}, vista, { movimientos: [Object.assign({}, vista.movimientos[0], { kpi: '<b>"x" & y</b>' })] });
+  assert.ok(documentoSemana(conTexto, null, String).html.includes('&lt;b&gt;&quot;x&quot; &amp; y&lt;/b&gt;'), 'text is escaped');
+  const desplegable = /<summary>KPIs a mirar esta semana[\s\S]*?<\/details>/.exec(pagina);
+  assert.ok(desplegable, 'the KPIs to look at have their own drop-down');
+  assert.match(desplegable[0], /id="documento"[^>]*>Descargar documento</, 'the download lives inside it');
+  assert.ok(desplegable[0].includes('id="kpis-mirar"'));
+  assert.doesNotMatch(/<div class="barra"[\s\S]*?<\/div>/.exec(pagina)[0], /documento/, 'not in the top bar');
 });

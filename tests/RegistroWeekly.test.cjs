@@ -215,14 +215,14 @@ test('next week: new, continuing and gone findings are told apart using the save
 test('a run saved with another payload shape is read again instead of served', () => {
   const { ctx, estado } = mundo({ [KPIS]: hojaKpis(), [DATOS]: hojaDatos(40) }, hoyPara(40));
   ctx.obtenerVistaWeekly(false);
-  const texto = estado.registro[1].slice(9).map(celda => celda.slice(1)).join('').replace('"formato":5', '"formato":2');
+  const texto = estado.registro[1].slice(9).map(celda => celda.slice(1)).join('').replace('"formato":6', '"formato":2');
   assert.match(texto, /"formato":2/);
   for (let i = 0; i < 20; i++) estado.registro[1][9 + i] = texto.slice(i * 45000, (i + 1) * 45000) ? '~' + texto.slice(i * 45000, (i + 1) * 45000) : '';
   const lecturas = estado.lecturasFuente;
   const respuesta = ctx.obtenerVistaWeekly(false);
   assert.equal(respuesta.procedencia, 'lectura');
   assert.ok(estado.lecturasFuente > lecturas);
-  assert.equal(respuesta.vista.formato, 5);
+  assert.equal(respuesta.vista.formato, 6);
 });
 
 test('failures: unreadable source falls back to the saved run; a busy lock still returns the result', () => {

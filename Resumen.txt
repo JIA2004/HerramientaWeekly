@@ -235,6 +235,16 @@
 
     <div class="desplegables">
       <details>
+        <summary>KPIs a mirar esta semana<small id="titulo-kpis-mirar"></small></summary>
+        <div class="dentro">
+          <div class="barra" style="margin:10px 0 6px">
+            <button class="accion" id="documento" disabled>Descargar documento</button>
+            <span class="linea">Todos los KPIs que se movieron fuera de lo habitual, mercado por mercado, con los datos a revisar. Se abre con Word o Google Docs.</span>
+          </div>
+          <div id="kpis-mirar"></div>
+        </div>
+      </details>
+      <details>
         <summary>Datos a revisar esta semana<small id="titulo-revisar-actual"></small></summary>
         <div class="dentro" id="revisar-actual"></div>
       </details>
@@ -261,7 +271,7 @@
 <script>
 (function () {
   'use strict';
-  var estado = { vista: null, respuesta: null, pais: '', segmento: '', orden: [], region: 0, leyendo: false };
+  var estado = { vista: null, respuesta: null, pais: '', segmento: '', orden: [], region: 0, leyendo: false, archivo: null };
   var MENSAJES = {
     FUENTE_SIN_HOJA: 'No se encontró alguna de las pestañas que usa la herramienta.',
     FUENTE_ESTRUCTURA: 'La estructura de la hoja cambió y no se pudo interpretar.',
@@ -338,6 +348,7 @@
     estado.vista = respuesta.vista;
     estado.respuesta = respuesta;
     estado.orden = [];
+    id('documento').disabled = false;
     pintaTodo();
   }
 
@@ -383,7 +394,31 @@
       ? 'Corrida guardada el ' : 'Leído del Sheets el ') + new Date(respuesta.generadoIso).toLocaleString('es-AR') +
       (vista.conHistorial ? '.' : '. Sin corrida guardada de la semana anterior: todavía no se puede marcar qué es nuevo.');
     pintaHistoria();
+    pintaMirar();
     pintaRevisar();
+  }
+
+  // Every KPI that moved beyond its usual range this week, strongest first.
+  // The same list goes, by market, into the downloadable document.
+  function pintaMirar() {
+    var vista = estado.vista;
+    var nodo = id('kpis-mirar');
+    limpia(nodo);
+    id('titulo-kpis-mirar').textContent = vista.movimientos.length + ' · ' + rotuloSemana(vista.semana);
+    vista.movimientos.forEach(function (m) {
+      var fila = crea('div', 'renglon');
+      fila.appendChild(crea('span', 'donde', m.entidad));
+      var medio = crea('div');
+      medio.appendChild(crea('strong', '', m.kpi));
+      medio.appendChild(crea('small', '', m.de + ' → ' + m.a + ' · ' + m.medida + '. Fila ' + m.fila + '.' +
+        (m.historial === 'nueva' ? ' Nuevo esta semana.' : m.historial === 'continua' ? ' También la semana pasada.' : '')));
+      fila.appendChild(medio);
+      var lado = crea('div', 'lado');
+      lado.appendChild(crea('span', 'pastilla ' + tono(m.favorable), flecha(m.sentido) + m.cambio));
+      fila.appendChild(lado);
+      nodo.appendChild(fila);
+    });
+    if (!vista.movimientos.length) nodo.appendChild(crea('div', 'vacio', 'Esta semana ningún KPI se movió fuera de lo habitual.'));
   }
 
   // ---- The four chapters ---------------------------------------------------------
@@ -710,6 +745,118 @@
     if (!revisar.anterior.grupos.length) anterior.appendChild(crea('div', 'vacio', 'La semana pasada no hubo datos a revisar.'));
   }
 
+  // ---- Document of the week -----------------------------------------------------------
+  //
+  // Every KPI that moved beyond its usual range this week, market by market
+  // (LATAM first, then the markets with most moves), with the data to review.
+  // Built only from the payload the page already has: every number and sentence
+  // comes formatted from the server, nothing is recalculated. The result is an
+  // HTML document saved as .doc so Word and Google Docs open it.
+  function documentoSemana(vista, origen, rotulo) {
+    function esc(texto) {
+      return String(texto).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function fechaDoc(iso) { var p = String(iso).split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : String(iso); }
+    var partes = [];
+    function agrega(html) { partes.push(html); }
+    var titulo = 'KPIs a mirar · ' + rotulo(vista.semana);
+    var lectura = function (m) { return m.favorable === true ? 'Favorable' : m.favorable === false ? 'Desfavorable' : 'Sin dirección definida'; };
+    var color = function (m) { return m.favorable === true ? '#14934f' : m.favorable === false ? '#d21f3c' : '#1f1d1d'; };
+    var historial = function (m) { return m.historial === 'nueva' ? 'Nuevo esta semana' : m.historial === 'continua' ? 'También la semana pasada' : ''; };
+    var porMercado = {};
+    vista.movimientos.forEach(function (m) { (porMercado[m.entidad] = porMercado[m.entidad] || []).push(m); });
+    var desfavorables = function (nombre) { return porMercado[nombre].filter(function (m) { return m.favorable === false; }).length; };
+    var mercados = Object.keys(porMercado).sort(function (a, b) {
+      var regional = (porMercado[b][0].esRegional ? 1 : 0) - (porMercado[a][0].esRegional ? 1 : 0);
+      return regional || porMercado[b].length - porMercado[a].length || desfavorables(b) - desfavorables(a) || a.localeCompare(b);
+    });
+    var c = vista.conteos;
+
+    agrega('<h1>' + esc(titulo) + '</h1>');
+    agrega('<p class="gris">Semana del ' + esc(fechaDoc(vista.semana)) + ' comparada con la del ' + esc(fechaDoc(vista.semanaAnterior)) +
+      '. Datos del Sheets actualizados el ' + esc(origen && origen.ultimaActualizacionExtract ? fechaDoc(origen.ultimaActualizacionExtract) : 'fecha no informada') +
+      '. Documento generado por WeeklyTool a partir de la lectura de la semana.</p>');
+    if (vista.provisoria) agrega('<p class="alerta">Lectura provisoria: la carga de la semana no está completa. Las cifras pueden cambiar.</p>');
+    vista.estadoCarga.forEach(function (item) { agrega('<p class="alerta">' + esc(item.titulo + '. ' + item.detalle) + '</p>'); });
+    agrega('<p>' + esc(c.movimientos + ' KPIs se movieron fuera de lo habitual (' + c.desfavorables + ' desfavorables, ' +
+      c.favorables + ' favorables) en ' + mercados.length + ' mercados. ' + c.calidadAltas + ' datos a revisar con prioridad alta.') + '</p>');
+    agrega('<p class="gris">Lo que figura como "a la vez se movieron" o "componentes" son coincidencias dentro de los mismos datos: ' +
+      'orientan la revisión, no demuestran la causa.</p>');
+
+    if (vista.historia && vista.historia.cierre) {
+      agrega('<h2>' + esc(vista.historia.cierre.titular) + '</h2>');
+      vista.historia.cierre.pasos.forEach(function (paso) {
+        agrega('<h3>' + esc(paso.titulo) + '</h3>');
+        if (paso.lista) agrega('<ul>' + paso.lista.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>');
+        else agrega('<p>' + esc(paso.texto) + '</p>');
+      });
+    }
+
+    agrega('<h2>Mercados</h2>');
+    if (!mercados.length) agrega('<p>Ningún KPI se movió fuera de lo habitual esta semana.</p>');
+    else {
+      agrega('<table><tr><th>Mercado</th><th>KPIs a mirar</th><th>Desfavorables</th><th>Favorables</th></tr>' +
+        mercados.map(function (nombre) {
+          return '<tr><td>' + esc(nombre) + '</td><td>' + porMercado[nombre].length + '</td><td>' + desfavorables(nombre) + '</td><td>' +
+            porMercado[nombre].filter(function (m) { return m.favorable === true; }).length + '</td></tr>';
+        }).join('') + '</table>');
+    }
+
+    mercados.forEach(function (nombre) {
+      var lista = porMercado[nombre];
+      agrega('<h2>' + esc(nombre + (lista[0].esRegional ? ' (agregado regional)' : '')) + '</h2>');
+      agrega('<table><tr><th>KPI</th><th>Cambio</th><th>Semana anterior → esta</th><th>Lectura</th><th>Cuánto se alejó</th><th>Historial</th></tr>' +
+        lista.map(function (m) {
+          return '<tr><td>' + esc(m.kpi) + '<br><span class="gris">Fila ' + esc(m.fila) + '</span></td>' +
+            '<td style="color:' + color(m) + ';font-weight:bold">' + esc(m.cambio) + '</td>' +
+            '<td>' + esc(m.de + ' → ' + m.a) + '</td><td>' + esc(lectura(m)) + '</td><td>' + esc(m.medida) + '</td>' +
+            '<td>' + esc(historial(m)) + '</td></tr>';
+        }).join('') + '</table>');
+      lista.forEach(function (m) {
+        if (!m.explicaciones.length) return;
+        agrega('<p class="kpi">' + esc(m.kpi + ' ' + m.cambio) + '</p>');
+        agrega('<ul>' + m.explicaciones.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>');
+      });
+    });
+
+    var revisar = (vista.revisar && vista.revisar.actual) || [];
+    agrega('<h2>Datos a revisar esta semana</h2>');
+    if (!revisar.length) agrega('<p>Esta semana no se detectaron datos a revisar.</p>');
+    else {
+      agrega('<table><tr><th>KPI</th><th>Qué se detectó</th><th>Mercados</th><th>Prioridad</th></tr>' +
+        revisar.map(function (g) {
+          return '<tr><td>' + esc(g.kpi) + '<br><span class="gris">Fila ' + esc(g.fila) + '</span></td><td>' +
+            esc(g.titulo + (g.detalle ? '. ' + g.detalle : '')) + '</td><td>' + esc(g.entidades.join(', ')) + '</td><td>' + esc(g.severidad) + '</td></tr>';
+        }).join('') + '</table>');
+    }
+
+    agrega('<h2>Cómo se decide qué mirar</h2>');
+    agrega('<ul>' + vista.limites.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>');
+
+    var html = '﻿<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>' + esc(titulo) + '</title><style>' +
+      'body{font-family:Arial,sans-serif;font-size:10.5pt;color:#1f1d1d}h1{font-size:18pt;color:#fa0050}' +
+      'h2{font-size:14pt;margin-top:18pt}h3{font-size:11pt}table{border-collapse:collapse;width:100%}' +
+      'th,td{border:1px solid #d9cfc9;padding:4pt 6pt;vertical-align:top;text-align:left}th{background:#faf3ef}' +
+      '.gris{color:#6b6461;font-size:9pt}.alerta{color:#b86e00;font-weight:bold}.kpi{font-weight:bold;margin:10pt 0 2pt}' +
+      '</style></head><body>' + partes.join('\n') + '</body></html>';
+    return { nombre: 'KPIs-a-mirar-' + vista.semana + '.doc', html: html };
+  }
+
+  function descargaDocumento() {
+    if (!estado.vista) return;
+    var doc = documentoSemana(estado.vista, estado.respuesta.origen, rotuloSemana);
+    // The previous file's address is released on the next download.
+    if (estado.archivo) URL.revokeObjectURL(estado.archivo);
+    estado.archivo = URL.createObjectURL(new Blob([doc.html], { type: 'application/msword' }));
+    var enlace = crea('a');
+    enlace.href = estado.archivo;
+    enlace.download = doc.nombre;
+    document.body.appendChild(enlace);
+    enlace.click();
+    document.body.removeChild(enlace);
+  }
+
+  id('documento').addEventListener('click', descargaDocumento);
   id('actualizar').addEventListener('click', function () { leer(true); });
   leer(false);
 })();
