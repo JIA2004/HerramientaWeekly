@@ -178,3 +178,10 @@ run in Apps Script.
 ## 2026-10-13 — probarCompuertaIaWeekly in Apps Script (operator-reported)
 
 Operator-reported, not produced by a local test: running `probarCompuertaIaWeekly` on the live sheet at 15:49 logged `{"puede":true,"semana":"2026-10-05","motivos":[]}`. A local run of the gate on the .xlsx copy downloaded afterwards gave the same result. The blocked case (week not loaded) has not been seen live.
+
+## 2026-10-14 — LATAM topline chart (local only)
+
+- Chapter 1 now charts the region's headline KPIs with the same chart as the markets. `weeklyResumenHistoria_` adds `grafico` to each `regional.topline` item; on the page the three topline cards are buttons and the chosen one (the first by default) is charted below them. The chart box code is shared with chapter 2 (`pintaCaja`).
+- Payload: `vista.formato = 5`, so a run saved with format 4 is read again once.
+- Tests: `node --test tests/*.test.cjs` → 86 passing (assertions added to existing tests). Seen in the preview on the 2026-10-09 copy: chart drawn, switching cards changes the KPI, the market chart still works, no console errors.
+- Not run in Apps Script. `ResumenWeekly` and `Resumen` have to be pasted again together.

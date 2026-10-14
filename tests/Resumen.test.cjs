@@ -146,6 +146,8 @@ test('weekly story: region, one card per country and closing come from computed 
   assert.equal(historia.regional.nombre, 'LATAM');
   assert.match(historia.regional.titular, /^LATAM (creció en|cayó en|mantuvo) Orders/);
   assert.equal(historia.regional.topline[0].nombre, 'Orders', 'the name of the sheet, never a translation');
+  assert.ok(historia.regional.topline.every(k => k.grafico.valores.length === 9 && k.grafico.textos.length === 9),
+    'every headline KPI of the region can be charted');
   assert.deepEqual(historia.paises.map(p => p.nombre), ['Argentina', 'Chile'], 'LATAM is never listed as a country');
   assert.equal(historia.paisInicial, 'Argentina');
   const argentina = historia.paises[0];
@@ -255,7 +257,7 @@ test('apps script project: no global name is declared in two files', () => {
 test('data to review: this week and the saved previous week, each telling what is still open', () => {
   const { m, analisis } = resultado();
   const vista = m.vistaWeekly(analisis);
-  assert.equal(vista.formato, 4);
+  assert.equal(vista.formato, 5);
   m.weeklyRegistroCompara_(vista, null);
   assert.equal(vista.revisar.anterior, null);
   const chile = vista.revisar.actual.find(g => g.entidades.includes('Chile') && g.titulo === 'Falta el dato de la última semana');
@@ -328,5 +330,6 @@ test('page: the segments of the sheet are buttons inside the market', () => {
     assert.ok(pagina.includes('id="' + nombre + '"'), nombre);
   }
   assert.match(script, /pais\.segmentos\.forEach/);
+  assert.ok(pagina.includes('id="region-grafico"'), 'the region charts its headline KPIs too');
   assert.doesNotMatch(script, /pais\.kpis|pais\.hipotesis|grafico\.serie/);
 });

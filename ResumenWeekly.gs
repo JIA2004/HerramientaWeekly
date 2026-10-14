@@ -179,7 +179,7 @@ const weeklyResumenReglas_ = Object.freeze({
 
 // Shape of the page payload. A run saved with another shape is read again
 // instead of being served to a page that no longer understands it.
-const weeklyResumenFormato_ = 4;
+const weeklyResumenFormato_ = 5;
 
 function vistaWeekly(resultado) {
   const serie = (evidencia, unidad) => evidencia.map(punto => ({ semana: punto.semana,
@@ -388,7 +388,8 @@ function weeklyResumenHistoria_(resultado) {
         (dePaises.length ? dePaises.length + ' movimientos fuera de lo habitual en ' + Object.keys(conAlertas).length + ' de ' +
           paises.length + ' países (' + desfavorables + ' desfavorables, ' + favorables + ' favorables). ' +
           mayor + ' es el mercado con más movimientos.' : 'Ningún país tuvo movimientos fuera de lo habitual.'),
-      topline: region.topline.map(weeklyResumenTarjeta_),
+      // The headline KPIs carry their chart too: the region shows one at a time.
+      topline: region.topline.map(item => Object.assign(weeklyResumenTarjeta_(item), { grafico: weeklyResumenGrafico_(item) })),
       movidas: (region.movidas || []).map(alerta => weeklyResumenDestacado_(alerta, true)) };
   }
 
